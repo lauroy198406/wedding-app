@@ -257,25 +257,17 @@
 
             const guestTypesOptions = ['親戚', '朋友', '同事', '其他'];
 
-        const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
+            const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
-        const saveHistory = (currentTables, currentGuests) => {
-            setHistory(prev => {
-                if (prev.length > 0) {
-                    const lastState = prev[prev.length - 1];
-                    // 避免儲存完全相同的重複狀態
-                    if (JSON.stringify(lastState.tables) === JSON.stringify(currentTables) && 
-                        JSON.stringify(lastState.guests) === JSON.stringify(currentGuests)) {
-                        return prev;
-                    }
-                }
-                const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
-                if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
-                return newHistory;
-            });
-        };
+            const saveHistory = (currentTables, currentGuests) => {
+                setHistory(prev => {
+                    const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
+                    if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
+                    return newHistory;
+                });
+            };
 
-        const handleUndo = () => {
+            const handleUndo = () => {
                 if (history.length === 0) return;
                 const lastState = history[history.length - 1];
                 setTables(lastState.tables);
@@ -498,19 +490,18 @@
             };
 
             const handleEndDrag = () => {
-            if (dragIdState) {
-                setDragId(null);
-                syncData(tables, guests); 
-            }
-        };
+                if (dragIdState) {
+                    setDragId(null);
+                    syncData(tables, guests); 
+                }
+            };
 
-        const handleStartDrag = (e, id) => {
-            if(!editMode) return;
-            saveHistory(tables, guests); // 在開始拖曳前記錄狀態
-            setDragId(id);
-        };
+            const handleStartDrag = (e, id) => {
+                if(!editMode) return;
+                setDragId(id);
+            };
 
-        const promptReset = () => {
+            const promptReset = () => {
                 setConfirmAction({
                     title: '危險操作',
                     message: isCloudMode ? '確定要清除所有資料嗎？這會同步覆蓋所有人的雲端資料！' : '確定要清除本機所有排位與賓客資料嗎？',
