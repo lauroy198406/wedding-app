@@ -24,10 +24,13 @@
     </script>
 
     <style>
-        /* 基礎設定與防彈跳 */
+        /* 基礎設定與防彈跳、防文字溢出縮放 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { -webkit-text-size-adjust: none; text-size-adjust: none; }
         body { font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; overflow: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
-        #root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 使用 dvh 確保底部導航列不被手機瀏覽器介面遮擋 */
+        #root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         .hidden { display: none !important; }
         
         /* 頂部標題 */
@@ -40,21 +43,20 @@
         /* 內容區：左右/上下分屏 */
         .main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         
-        /* 🌟 場地佈局容器 (確保 Canvas 永遠完美居中且不超出版面) */
-        .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; touch-action: none; /* 鎖死此區滑動，保障拖曳 */ }
+        /* 🌟 場地佈局容器 (鎖定防滑動，保障拖曳順暢) */
+        .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; touch-action: none; }
         
-        /* 🌟 動態比例 Canvas (使用 Container Queries) */
+        /* 🌟 動態極限比例 Canvas (核心修正區) */
         .canvas { 
-            width: 100%; 
-            max-width: 100%; 
-            max-height: 100%; 
+            /* 透過 min() 函數，確保 Canvas 寬度絕對不會超過可用高度推算的極限，永遠完美置中不溢出！ */
+            width: min(100%, calc((100dvh - 130px) * 1.414));
             aspect-ratio: 1.414 / 1; 
             background: white; 
             position: relative; 
             border: 2px solid white; 
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
             border-radius: 4px;
-            container-type: inline-size; /* 啟用容器比例系統 */
+            container-type: inline-size; 
         }
         
         @media (min-width: 768px) {
@@ -62,17 +64,20 @@
             .layout-view { flex: 1; display: flex !important; }
             .panel { width: 380px; display: flex !important; flex-shrink: 0; border-left: 1px solid #cbd5e1; height: 100%; background: #f8fafc; }
             .nav-bar { display: none !important; }
-            .canvas { border-width: 4px; }
+            .canvas { 
+                border-width: 4px; 
+                width: min(100%, calc((100dvh - 65px) * 1.414)); /* 電腦版高度推算 */
+            }
         }
 
-        /* 場地特徵元素 (基於 Canvas 寬度 cqw 動態縮放) */
-        .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 3.5cqw; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 1.2cqw; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 0.5cqw; pointer-events: none; }
-        .window { position: absolute; left: 0; bottom: 0; right: 0; height: 2.5cqw; background: #eff6ff; border-top: 1px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 1cqw; font-weight: 900; letter-spacing: 0.5cqw; text-transform: uppercase; pointer-events: none; }
-        .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 2cqw; background: #f1f5f9; border-right: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1cqw; font-weight: bold; writing-mode: vertical-rl; pointer-events: none; }
-        .aisle { position: absolute; left: 2cqw; right: 3.5cqw; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
+        /* 🌟 場地特徵元素 (已調整為最佳 1.7 倍真實比例) */
+        .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 6.5cqw; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 2.25cqw; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 1cqw; pointer-events: none; }
+        .window { position: absolute; left: 0; bottom: 0; right: 0; height: 4.5cqw; background: #eff6ff; border-top: 1px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 1.75cqw; font-weight: 900; letter-spacing: 1cqw; text-transform: uppercase; pointer-events: none; }
+        .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 3.75cqw; background: #f1f5f9; border-right: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1.75cqw; font-weight: bold; writing-mode: vertical-rl; pointer-events: none; }
+        .aisle { position: absolute; left: 3.75cqw; right: 6.5cqw; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
 
-        /* 🌟 桌子與內部元素 (全部改用 cqw 單位，隨螢幕完美縮放) */
-        .table-wrap { position: absolute; width: 4.8cqw; height: 4.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; cursor: grab; }
+        /* 🌟 桌子與內部元素 (恢復飽滿的真實比例) */
+        .table-wrap { position: absolute; width: 8.5cqw; height: 8.5cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; cursor: grab; }
         .table-wrap:active { cursor: grabbing; }
         .table-wrap.transition { transition: transform 0.2s, top 0.2s, left 0.2s; }
         .table-wrap.edit-mode { border: 1px dashed #cbd5e1; }
@@ -81,19 +86,20 @@
         .table-core { position: relative; z-index: 10; width: 65%; height: 65%; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
         .t-boy { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
         .t-girl { background: #fdf2f8; border-color: #fbcfe8; color: #be185d; }
-        .t-name { font-size: 1cqw; font-weight: 900; line-height: 1; }
-        .t-count { font-size: 0.8cqw; font-weight: bold; opacity: 0.6; margin-top: 2px; }
-        .del-btn { position: absolute; top: -0.5cqw; right: -0.5cqw; background: #ef4444; color: white; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; cursor: pointer; }
+        .t-name { font-size: 1.6cqw; font-weight: 900; line-height: 1.1; }
+        .t-count { font-size: 1.2cqw; font-weight: bold; opacity: 0.6; line-height: 1; margin-top: 1px; }
+        .del-btn { position: absolute; top: -1cqw; right: -1cqw; background: #ef4444; color: white; width: 3cqw; height: 3cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; cursor: pointer; }
+        .del-btn svg { width: 60%; height: 60%; }
         
-        /* 🌟 主家席專屬動態樣式 */
-        .table-wrap-main { width: 7.5cqw !important; height: 7.5cqw !important; z-index: 15; }
-        .table-core-main { width: 70% !important; height: 70% !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
-        .table-core-main .t-name { font-size: 1.5cqw !important; }
-        .table-core-main .t-count { font-size: 1cqw !important; margin-top: 2px !important; }
+        /* 🌟 主家席專屬比例 */
+        .table-wrap-main { width: 13.5cqw !important; height: 13.5cqw !important; z-index: 15; }
+        .table-core-main { width: 66% !important; height: 66% !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
+        .table-core-main .t-name { font-size: 2.5cqw !important; }
+        .table-core-main .t-count { font-size: 1.7cqw !important; margin-top: 2px !important; }
 
         /* 圓點動態大小 */
-        .dot { position: absolute; width: 0.8cqw; height: 0.8cqw; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
-        .dot-main { width: 1.2cqw !important; height: 1.2cqw !important; } 
+        .dot { position: absolute; width: 1.1cqw; height: 1.1cqw; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
+        .dot-main { width: 1.5cqw !important; height: 1.5cqw !important; } 
         .dot-empty { background: #cbd5e1; }
         .dot-boy { background: #2563eb; }
         .dot-girl { background: #ec4899; }
@@ -122,10 +128,10 @@
         .filter-btn.active-girl { background: #ec4899; color: white; border-color: #ec4899; }
         .filter-btn.active-type { background: #e11d48; color: white; border-color: #e11d48; }
 
-        /* 🌟 模態框 (Modal) (保障內部清爽滑動) */
+        /* 🌟 模態框 (Modal) (保障內部清爽滑動與防遮擋) */
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
-        .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; overflow: hidden; }
-        @media (min-width: 768px) { .modal-content { height: 80vh; border-radius: 24px; margin-bottom: 5vh; } .modal-overlay { align-items: center; } }
+        .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; height: 88dvh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; overflow: hidden; }
+        @media (min-width: 768px) { .modal-content { height: 80vh; height: 80dvh; border-radius: 24px; margin-bottom: 5vh; } .modal-overlay { align-items: center; } }
         .modal-scroll-area { flex: 1; overflow-y: auto; padding-bottom: 20px; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
         .modal-close { position: absolute; right: 20px; top: 20px; background: #f1f5f9; border: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;}
         
@@ -167,7 +173,7 @@
 
         const { useState, useEffect, useRef } = React;
 
-        const Icon = ({ type, size = "18" }) => {
+        const Icon = ({ type, size = "18", className = "" }) => {
             const paths = {
                 settings: "M12.22 2h-1.44a1 1 0 00-.99.82l-.23 1.33a8.21 8.21 0 00-2 1.15l-1.25-.5a1 1 0 00-1.21.36l-.72 1.25a1 1 0 00.22 1.25l1.05.81a8 8 0 000 2.32l-1.05.81a1 1 0 00-.22 1.25l.72 1.25a1 1 0 001.21.36l1.25-.5a8.21 8.21 0 002 1.15l.23 1.33a1 1 0 00.99.82h1.44a1 1 0 00.99-.82l.23-1.33a8.21 8.21 0 002-1.15l1.25.5a1 1 0 001.21-.36l.72-1.25a1 1 0 00-.22-1.25l-1.05-.81a8 8 0 000-2.32l1.05-.81a1 1 0 00.22-1.25l-.72-1.25a1 1 0 00-1.21-.36l-1.25.5a8.21 8.21 0 00-2-1.15l-.23-1.33a1 1 0 00-.99-.82z",
                 plus: "M12 5v14M5 12h14",
@@ -182,7 +188,7 @@
                 undo: "M3 9l4-4m-4 4l4 4m-4-4h10a5 5 0 010 10h-2"
             };
             return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d={paths[type]} />
                 </svg>
             );
@@ -306,7 +312,6 @@
                 setIsCloudMode(true);
                 setLoadMsg('連線至雲端伺服器中...');
                 
-                // 等待 Firebase 模組載入完成
                 const waitForFirebase = () => new Promise(resolve => {
                     if (window.FirebaseLib) return resolve(true);
                     const timer = setTimeout(() => resolve(false), 5000);
@@ -354,26 +359,26 @@
                 if (!window.FirebaseLib) return;
                 const { doc, onSnapshot, setDoc } = window.FirebaseLib;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                // 升級至 v7 資料庫通道，並且確保路徑有 6 個區段 (偶數) 以符合 document reference 規則
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'wedding_db_v7');
+                // 使用修正後的 6 段路徑
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'wedding_db_v7');
 
-                    unsubscribe = onSnapshot(docRef, (document) => {
-                        if (document.exists()) {
-                            if (!dragIdRef.current) setTables(document.data().tables || []);
-                            setGuests(document.data().guests || []);
-                            setIsLoaded(true);
-                        } else {
-                            const defaultData = generateStarviewLayout();
-                            setDoc(docRef, defaultData).then(() => setIsLoaded(true));
-                        }
-                    }, (err) => console.error(err));
-                };
+                unsubscribe = onSnapshot(docRef, (document) => {
+                    if (document.exists()) {
+                        if (!dragIdRef.current) setTables(document.data().tables || []);
+                        setGuests(document.data().guests || []);
+                        setIsLoaded(true);
+                    } else {
+                        const defaultData = generateStarviewLayout();
+                        setDoc(docRef, defaultData).then(() => setIsLoaded(true));
+                    }
+                }, (err) => console.error(err));
+            };
 
-                listenToCloud();
-                return () => { if(unsubscribe) unsubscribe(); };
-            }, [user, db, isCloudMode]);
+            listenToCloud();
+            return () => { if(unsubscribe) unsubscribe(); };
+        }, [user, db, isCloudMode]);
 
-            const syncData = async (newTables, newGuests) => {
+        const syncData = async (newTables, newGuests) => {
             if (!isCloudMode) {
                 localStorage.setItem('wedding_seating_local_v3', JSON.stringify({ tables: newTables, guests: newGuests }));
                 setSaveStatus('本機已儲存 ✓');
@@ -385,7 +390,6 @@
             try {
                 const { doc, setDoc } = window.FirebaseLib;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                // 確保儲存時路徑有 6 個區段
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'wedding_db_v7');
                 await setDoc(docRef, { tables: newTables, guests: newGuests });
                 setSaveStatus('雲端已儲存 ✓');
@@ -490,14 +494,14 @@
                 const dots = [];
                 for(let i=0; i<assigned.length && i<table.cap; i++) {
                     const angle = (i * (360 / table.cap) - 90) * (Math.PI / 180);
-                    // 使用 cqw 單位比例：主桌較大，普通桌較小
-                    const radiusCqw = isMain ? 3.6 : 2.4; 
+                    // 🌟 修正後的圓點半徑比例，確保圓點在正確的邊緣
+                    const radiusCqw = isMain ? 6.0 : 3.75; 
                     const dx = Math.cos(angle) * radiusCqw; 
                     const dy = Math.sin(angle) * radiusCqw;
                     const g = assigned[i];
                     let dotCls = `dot ${isMain ? 'dot-main' : ''} dot-empty`;
                     if(g.attended) dotCls = `dot ${isMain ? 'dot-main' : ''} ${table.side==='男家'?'dot-boy':'dot-girl'}`;
-                    // 直接注入 cqw 變數
+                    
                     dots.push(<div key={i} className={dotCls} style={{ transform: `translate(${dx}cqw, ${dy}cqw)` }} />);
                 }
 
@@ -537,7 +541,8 @@
                                     });
                                 }}
                             >
-                                <Icon type="x" size="10" />
+                                {/* 🌟 讓打叉圖標完美縮放填滿按鈕 */}
+                                <Icon type="x" size="60%" />
                             </button>
                         )}
                     </div>
