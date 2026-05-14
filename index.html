@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>星海薈座位管理 (強效斷線保護版)</title>
+    <title>星海薈座位管理 (大螢幕與防呆復原版)</title>
     <!-- 穩定的 CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -16,18 +16,31 @@
         .hidden { display: none !important; }
         
         /* 頂部標題 */
-        .header { background: #0f172a; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 50; }
+        .header { background: #0f172a; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 50; flex-shrink: 0; }
         .header-title { font-size: 14px; font-weight: bold; font-style: italic; display: flex; align-items: center; }
         .btn-icon { background: #334155; color: #94a3b8; border: none; padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; }
         .btn-icon.active { background: #f59e0b; color: white; }
+        .btn-icon.undo-btn { background: #4f46e5; color: white; margin-right: 8px; }
         
-        /* 內容區 */
+        /* 內容區：預設手機版 (直向排列) */
         .main-content { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
         
         /* 場地佈局 */
         .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; }
-        .canvas { width: 100%; aspect-ratio: 1.414/1; background: white; position: relative; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden; touch-action: none; border-radius: 4px; }
         
+        /* Canvas 比例約束 */
+        .canvas { width: 100%; max-width: 100%; max-height: 100%; aspect-ratio: 1.414/1; background: white; position: relative; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden; touch-action: none; border-radius: 4px; margin: auto; }
+        
+        /* 網頁/大螢幕版優化 (寬度 >= 768px) */
+        @media (min-width: 768px) {
+            .main-content { flex-direction: row; }
+            .layout-view { flex: 1; display: flex !important; }
+            .panel { width: 380px; display: flex !important; flex-shrink: 0; border-left: 1px solid #cbd5e1; height: 100%; background: #f8fafc; }
+            .nav-bar { display: none !important; } /* 隱藏底部導航，左右分屏同時顯示 */
+            /* 讓 Canvas 在大螢幕自動縮放，確保完全不出界 */
+            .canvas { max-width: calc((100vh - 60px) * 1.414); max-height: calc(100vw / 1.414); height: auto; }
+        }
+
         /* 場地特徵元素 */
         .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 26px; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 9px; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 4px; box-shadow: -4px 0 10px rgba(0,0,0,0.1); z-index: 2; pointer-events: none; }
         .window { position: absolute; left: 0; bottom: 0; right: 0; height: 18px; background: #eff6ff; border-top: 2px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 7px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; z-index: 2; pointer-events: none; }
@@ -64,8 +77,8 @@
         .dot-girl { background: #ec4899; }
         
         /* 底部導航 */
-        .nav-bar { height: 60px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; padding-bottom: 5px; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; border: none; background: none; font-size: 10px; font-weight: bold; gap: 4px; }
+        .nav-bar { height: 60px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; padding-bottom: 5px; flex-shrink: 0; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; border: none; background: none; font-size: 10px; font-weight: bold; gap: 4px; cursor: pointer; }
         .nav-item.active { color: #e11d48; }
 
         /* 列表與表單 */
@@ -89,7 +102,8 @@
 
         /* 模態框 (Modal) */
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
-        .modal-content { background: white; width: 100%; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; }
+        .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; }
+        @media (min-width: 768px) { .modal-content { height: 80vh; border-radius: 24px; margin-bottom: 5vh; } .modal-overlay { align-items: center; } }
         .modal-close { position: absolute; right: 20px; top: 20px; background: #f1f5f9; border: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;}
         .guest-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
         .guest-item:last-child { border-bottom: none; }
@@ -143,10 +157,10 @@
                 users: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
                 check: "M20 6L9 17l-5-5",
                 trash: "M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-                filter: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
                 alert: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
                 edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-                cloud: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+                cloud: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z",
+                undo: "M3 9l4-4m-4 4l4 4m-4-4h10a5 5 0 010 10h-2"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -161,7 +175,11 @@
             const [saveStatus, setSaveStatus] = useState('');
             const [isCloudMode, setIsCloudMode] = useState(false);
             
-            const [showResetConfirm, setShowResetConfirm] = useState(false);
+            // 統一的防呆確認視窗
+            const [confirmAction, setConfirmAction] = useState(null);
+            
+            // 復原系統 (Undo)
+            const [history, setHistory] = useState([]);
 
             const [tables, setTables] = useState([]);
             const [guests, setGuests] = useState([]);
@@ -187,7 +205,6 @@
 
             const containerRef = useRef(null);
             
-            // 修正拖曳時狀態衝突的 Ref
             const [dragIdState, setDragIdState] = useState(null);
             const dragIdRef = useRef(null);
             const setDragId = (id) => {
@@ -200,7 +217,29 @@
 
             const guestTypesOptions = ['親戚', '朋友', '同事', '其他'];
 
-            // 佈局初始化
+            // 深拷貝工具，確保歷史記錄不受後續修改污染
+            const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
+
+            // 保存歷史紀錄供 Undo 使用
+            const saveHistory = (currentTables, currentGuests) => {
+                setHistory(prev => {
+                    const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
+                    // 最多保存 10 步，避免記憶體佔用
+                    if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
+                    return newHistory;
+                });
+            };
+
+            const handleUndo = () => {
+                if (history.length === 0) return;
+                const lastState = history[history.length - 1];
+                setTables(lastState.tables);
+                setGuests(lastState.guests);
+                syncData(lastState.tables, lastState.guests);
+                setHistory(prev => prev.slice(0, -1));
+                setSaveStatus('已復原 ↶');
+            };
+
             const generateStarviewLayout = () => {
                 const initT = [];
                 initT.push({ id: 1, name: '主家席', side: '男家', cap: 12, x: 80, y: 50, isMain: true });
@@ -227,18 +266,15 @@
                 return { tables: initT, guests: initG };
             };
 
-            // ==========================================
-            // 新增：安全讀取本機資料的獨立函式
-            // ==========================================
             const loadLocalData = () => {
-                setIsCloudMode(false); // 標記為離線模式
-                const savedData = localStorage.getItem('wedding_seating_local_v1');
+                setIsCloudMode(false); 
+                const savedData = localStorage.getItem('wedding_seating_local_v2');
                 if (savedData) {
                     try {
                         const parsed = JSON.parse(savedData);
                         setTables(parsed.tables || []);
                         setGuests(parsed.guests || []);
-                    } catch(e) { console.error("解析本機資料失敗", e); }
+                    } catch(e) {}
                 } else {
                     const defaultData = generateStarviewLayout();
                     setTables(defaultData.tables);
@@ -246,19 +282,14 @@
                 }
             };
 
-            // ==========================================
-            // 核心 1：Firebase 與 LocalStorage 雙模啟動
-            // ==========================================
             useEffect(() => {
                 const initSystem = async () => {
-                    // 如果沒有 Firebase 環境變數，自動降級為 LocalStorage
                     if (typeof __firebase_config === 'undefined') {
                         loadLocalData();
                         setIsLoaded(true);
                         return;
                     }
 
-                    // 雲端連線模式
                     setIsCloudMode(true);
                     setLoadMsg('連線至雲端伺服器中...');
                     try {
@@ -278,13 +309,10 @@
                             await signInAnonymously(auth);
                         }
 
-                        onAuthStateChanged(auth, (u) => {
-                            setUser(u);
-                        });
+                        onAuthStateChanged(auth, (u) => { setUser(u); });
                     } catch (error) {
                         console.error("Firebase init failed", error);
                         setLoadMsg('雲端連線失敗，自動切換至離線模式...');
-                        // 確保連線失敗時，也能正確讀取本機資料，避免桌子消失
                         loadLocalData(); 
                         setTimeout(() => setIsLoaded(true), 1500);
                     }
@@ -292,75 +320,51 @@
                 initSystem();
             }, []);
 
-            // ==========================================
-            // 核心 2：載入與監聽雲端資料 (即時同步)
-            // ==========================================
             useEffect(() => {
                 if (!isCloudMode || !user || !db) return;
-
                 setLoadMsg('同步雲端資料中...');
                 let unsubscribe;
 
                 const listenToCloud = async () => {
                     const { doc, onSnapshot, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db');
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v6');
 
                     unsubscribe = onSnapshot(docRef, (document) => {
                         if (document.exists()) {
-                            if (!dragIdRef.current) {
-                                setTables(document.data().tables || []);
-                            }
+                            if (!dragIdRef.current) setTables(document.data().tables || []);
                             setGuests(document.data().guests || []);
                             setIsLoaded(true);
                         } else {
-                            // 初始化雲端資料庫
                             const defaultData = generateStarviewLayout();
-                            setDoc(docRef, defaultData).then(() => {
-                                setIsLoaded(true);
-                            });
+                            setDoc(docRef, defaultData).then(() => setIsLoaded(true));
                         }
-                    }, (err) => {
-                        console.error("即時同步錯誤", err);
-                    });
+                    }, (err) => console.error(err));
                 };
 
                 listenToCloud();
                 return () => { if(unsubscribe) unsubscribe(); };
             }, [user, db, isCloudMode]);
 
-            // ==========================================
-            // 核心 3：統一儲存函式 (寫入雲端或本機)
-            // ==========================================
             const syncData = async (newTables, newGuests) => {
-                // 如果是離線模式，寫入 LocalStorage
                 if (!isCloudMode) {
-                    localStorage.setItem('wedding_seating_local_v1', JSON.stringify({ tables: newTables, guests: newGuests }));
+                    localStorage.setItem('wedding_seating_local_v2', JSON.stringify({ tables: newTables, guests: newGuests }));
                     setSaveStatus('本機已儲存 ✓');
                     setTimeout(() => setSaveStatus(''), 2000);
                     return;
                 }
-
                 if (!db || !user) return;
                 setSaveStatus('同步中...');
                 try {
                     const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db');
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v6');
                     await setDoc(docRef, { tables: newTables, guests: newGuests });
                     setSaveStatus('雲端已儲存 ✓');
                     setTimeout(() => setSaveStatus(''), 2000);
                 } catch (e) {
                     setSaveStatus('同步失敗 ❌');
                 }
-            };
-
-            const executeReset = () => {
-                const def = generateStarviewLayout();
-                setTables(def.tables);
-                setGuests(def.guests);
-                syncData(def.tables, def.guests);
-                setShowResetConfirm(false);
             };
 
             useEffect(() => {
@@ -376,22 +380,32 @@
                 }
             }, [selTableId]);
 
-            // ==========================================
-            // 邏輯操作 (全部連接 syncData)
-            // ==========================================
+            const updateBothData = (newT, newG) => {
+                setTables(newT);
+                setGuests(newG);
+                syncData(newT, newG);
+            };
+
+            const updateTableData = (newT) => {
+                setTables(newT);
+                syncData(newT, guests);
+            };
+
+            const updateGuestData = (newG) => {
+                setGuests(newG);
+                syncData(tables, newG);
+            };
+
             const handleAddGuest = () => {
                 if(!gName) return;
                 let tid = gTable === 'none' ? null : parseInt(gTable);
                 const newG = [...guests, { id: `g${Date.now()}`, name: gName, side: gSide, type: gType, tableId: tid, attended: false }];
-                setGuests(newG);
-                syncData(tables, newG);
+                updateGuestData(newG);
                 setGName('');
             };
 
             const updateTableSide = (id, newSide) => {
-                const newT = tables.map(t => t.id === id ? { ...t, side: newSide } : t);
-                setTables(newT);
-                syncData(newT, guests);
+                updateTableData(tables.map(t => t.id === id ? { ...t, side: newSide } : t));
             };
 
             const handleMove = (e) => {
@@ -424,18 +438,20 @@
                 setDragId(id);
             };
 
-            const updateGuestData = (newG) => {
-                setGuests(newG);
-                syncData(tables, newG);
-            };
-            const updateTableData = (newT) => {
-                setTables(newT);
-                syncData(newT, guests);
+            // 觸發安全重置
+            const promptReset = () => {
+                setConfirmAction({
+                    title: '危險操作',
+                    message: '確定要清除所有排位與賓客資料，並載入星海薈最新佈局嗎？這會同步覆蓋所有人的雲端資料！',
+                    onConfirm: () => {
+                        saveHistory(tables, guests);
+                        const def = generateStarviewLayout();
+                        updateBothData(def.tables, def.guests);
+                        setConfirmAction(null);
+                    }
+                });
             };
 
-            // ==================
-            // 桌子渲染函式
-            // ==================
             const renderTable = (table) => {
                 const assigned = guests.filter(g => g.tableId === table.id);
                 const isMain = table.id === 1 || table.isMain;
@@ -471,7 +487,28 @@
                             <span className="t-name">{table.name.includes('主') ? '主' : table.id}</span>
                             <span className="t-count">{assigned.length}</span>
                         </div>
-                        {editMode && <button className="del-btn" onClick={(e)=>{e.stopPropagation(); updateTableData(tables.filter(t=>t.id!==table.id));}}><Icon type="x" size="8" /></button>}
+                        {editMode && (
+                            <button 
+                                className="del-btn" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    // 刪除桌子前防呆確認
+                                    setConfirmAction({
+                                        title: '刪除桌子',
+                                        message: `確定要刪除「${table.name}」嗎？已安排在此桌的賓客將變成未分配狀態。`,
+                                        onConfirm: () => {
+                                            saveHistory(tables, guests); // 存入Undo
+                                            const newT = tables.filter(t => t.id !== table.id);
+                                            const newG = guests.map(g => g.tableId === table.id ? { ...g, tableId: null, attended: false } : g);
+                                            updateBothData(newT, newG);
+                                            setConfirmAction(null);
+                                        }
+                                    });
+                                }}
+                            >
+                                <Icon type="x" size="8" />
+                            </button>
+                        )}
                     </div>
                 );
             };
@@ -511,12 +548,17 @@
                         <div className="header-title">
                             The ONE 星海薈
                             <span style={{ fontSize: '10px', color: isCloudMode ? '#10b981' : '#f59e0b', marginLeft: '10px', fontWeight: 'normal', display:'flex', alignItems:'center', gap:'2px' }}>
-                                {isCloudMode && <Icon type="cloud" size="12" />} {saveStatus || (isCloudMode ? '雲端共用中' : '本機模式')}
+                                {isCloudMode && <Icon type="cloud" size="12" />} {saveStatus || (isCloudMode ? '雲端同步' : '本機模式')}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {history.length > 0 && (
+                                <button className="btn-icon undo-btn" onClick={handleUndo} title="復原上一步 (包含誤刪)">
+                                    <Icon type="undo" size="14" /> 復原
+                                </button>
+                            )}
                             {editMode && (
-                                <button className="btn-icon" style={{ background: '#ef4444', color: 'white' }} onClick={() => setShowResetConfirm(true)}>
+                                <button className="btn-icon" style={{ background: '#ef4444', color: 'white' }} onClick={promptReset}>
                                     <Icon type="trash" size="14" />
                                 </button>
                             )}
@@ -524,6 +566,7 @@
                                 <Icon type="settings" size="16" />
                             </button>
                             <button className="btn-icon" onClick={() => {
+                                saveHistory(tables, guests);
                                 const nid = tables.length>0 ? Math.max(...tables.map(t=>t.id))+1 : 1;
                                 updateTableData([...tables, { id: nid, name:`${nid}桌`, side:'男家', cap:12, x:50, y:50 }]);
                             }}>
@@ -532,7 +575,7 @@
                         </div>
                     </div>
 
-                    {/* 主要內容區塊 */}
+                    {/* 主要內容區塊 (響應式：手機上下，電腦左右) */}
                     <div className="main-content">
                         
                         {/* 視圖 1: 場地佈局 */}
@@ -554,7 +597,7 @@
                             </div>
                         </div>
 
-                        {/* 視圖 2: 賓客管理 */}
+                        {/* 視圖 2: 賓客管理面板 */}
                         <div className={`panel ${tab === 'guests' ? '' : 'hidden'}`}>
                             <div className="card">
                                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>快速錄入新賓客</div>
@@ -618,7 +661,7 @@
                         </div>
                     </div>
 
-                    {/* 底部導航欄 */}
+                    {/* 底部導航欄 (僅手機版顯示) */}
                     <div className="nav-bar">
                         <button className={`nav-item ${tab==='layout'?'active':''}`} onClick={()=>setTab('layout')}><Icon type="layout"/>場地</button>
                         <button className={`nav-item ${tab==='guests'?'active':''}`} onClick={()=>setTab('guests')}><Icon type="users"/>賓客</button>
@@ -649,7 +692,6 @@
                                 </div>
 
                                 <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }}>
-                                    
                                     {modalTab === 'seated' && (
                                         <div>
                                             <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '8px', textAlign: 'center' }}>點擊左側圓圈為賓客簽到</div>
@@ -664,7 +706,20 @@
                                                             <div style={{ fontSize: '10px', color: '#94a3b8' }}>{g.side} · {g.type}</div>
                                                         </div>
                                                     </div>
-                                                    <button style={{ background:'none', border:'none', color:'#cbd5e1', cursor: 'pointer', padding: '4px' }} onClick={() => updateGuestData(guests.map(item => item.id === g.id ? {...item, tableId: null, attended: false} : item))}>
+                                                    <button 
+                                                        style={{ background:'none', border:'none', color:'#cbd5e1', cursor: 'pointer', padding: '4px' }} 
+                                                        onClick={() => {
+                                                            setConfirmAction({
+                                                                title: '移出座位',
+                                                                message: `確定要將「${g.name}」從此桌移出嗎？`,
+                                                                onConfirm: () => {
+                                                                    saveHistory(tables, guests);
+                                                                    updateGuestData(guests.map(item => item.id === g.id ? {...item, tableId: null, attended: false} : item));
+                                                                    setConfirmAction(null);
+                                                                }
+                                                            });
+                                                        }}
+                                                    >
                                                         <Icon type="trash" />
                                                     </button>
                                                 </div>
@@ -719,7 +774,7 @@
                     {/* 賓客編輯 Modal */}
                     {editingGuest && (
                         <div className="modal-overlay" onClick={(e) => {if(e.target === e.currentTarget) setEditingGuest(null)}}>
-                            <div className="modal-content" style={{ paddingBottom: '30px', height: 'auto' }}>
+                            <div className="modal-content" style={{ paddingBottom: '30px', height: 'auto', minHeight: 'auto' }}>
                                 <button className="modal-close" onClick={() => setEditingGuest(null)}><Icon type="x"/></button>
                                 <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>編輯賓客資訊</div>
                                 
@@ -757,8 +812,16 @@
                                     
                                     <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                                         <button className="btn-action" style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #cbd5e1', flex: 1 }} onClick={() => {
-                                            updateGuestData(guests.filter(g => g.id !== editingGuest.id));
-                                            setEditingGuest(null);
+                                            setConfirmAction({
+                                                title: '刪除賓客',
+                                                message: `確定要從名單中徹底刪除「${editingGuest.name}」嗎？`,
+                                                onConfirm: () => {
+                                                    saveHistory(tables, guests);
+                                                    updateGuestData(guests.filter(g => g.id !== editingGuest.id));
+                                                    setEditingGuest(null);
+                                                    setConfirmAction(null);
+                                                }
+                                            });
                                         }}>刪除</button>
                                         <button className="btn-action" style={{ flex: 2 }} onClick={() => {
                                             updateGuestData(guests.map(g => g.id === editingGuest.id ? editingGuest : g));
@@ -770,16 +833,16 @@
                         </div>
                     )}
 
-                    {/* 重置確認 Modal */}
-                    {showResetConfirm && (
+                    {/* 統一的全局防呆確認 Modal */}
+                    {confirmAction && (
                         <div className="modal-overlay" style={{ alignItems: 'center', zIndex: 9999 }}>
-                            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '80%', maxWidth: '300px', textAlign: 'center' }}>
+                            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '80%', maxWidth: '300px', textAlign: 'center', animation: 'slideUp 0.2s ease-out' }}>
                                 <div style={{ color: '#ef4444', marginBottom: '12px', display: 'flex', justifyContent: 'center' }}><Icon type="alert" size="32" /></div>
-                                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>危險操作</h3>
-                                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>確定要清除所有排位與賓客資料，並載入星海薈最新佈局嗎？<br/><br/><b>這會同步覆蓋所有人的雲端資料，且無法復原。</b></p>
+                                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>{confirmAction.title}</h3>
+                                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px', lineHeight: '1.5' }}>{confirmAction.message}</p>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 'bold', color: '#64748b' }} onClick={() => setShowResetConfirm(false)}>取消</button>
-                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold' }} onClick={executeReset}>確定清除</button>
+                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 'bold', color: '#64748b', cursor: 'pointer' }} onClick={() => setConfirmAction(null)}>取消</button>
+                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }} onClick={confirmAction.onConfirm}>確定執行</button>
                                 </div>
                             </div>
                         </div>
@@ -793,3 +856,5 @@
     </script>
 </body>
 </html>
+
+```
