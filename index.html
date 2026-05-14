@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>星海薈座位管理 (大螢幕與防呆復原版)</title>
+    <title>星海薈座位管理 (手機全覽完美版)</title>
     <!-- 穩定的 CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
     
     <style>
+        /* 基礎設定與防彈跳 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; overflow: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
-        #root { height: 100vh; display: flex; flex-direction: column; }
+        #root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         .hidden { display: none !important; }
         
         /* 頂部標題 */
@@ -22,56 +23,63 @@
         .btn-icon.active { background: #f59e0b; color: white; }
         .btn-icon.undo-btn { background: #4f46e5; color: white; margin-right: 8px; }
         
-        /* 內容區：預設手機版 (直向排列) */
-        .main-content { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        /* 內容區：左右/上下分屏 */
+        .main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         
-        /* 場地佈局 */
-        .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; }
+        /* 🌟 場地佈局容器 (確保 Canvas 永遠完美居中且不超出版面) */
+        .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; touch-action: none; /* 鎖死此區滑動，保障拖曳 */ }
         
-        /* Canvas 比例約束 */
-        .canvas { width: 100%; max-width: 100%; max-height: 100%; aspect-ratio: 1.414/1; background: white; position: relative; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden; touch-action: none; border-radius: 4px; margin: auto; }
+        /* 🌟 動態比例 Canvas (使用 Container Queries) */
+        .canvas { 
+            width: 100%; 
+            max-width: 100%; 
+            max-height: 100%; 
+            aspect-ratio: 1.414 / 1; 
+            background: white; 
+            position: relative; 
+            border: 2px solid white; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+            border-radius: 4px;
+            container-type: inline-size; /* 啟用容器比例系統 */
+        }
         
-        /* 網頁/大螢幕版優化 (寬度 >= 768px) */
         @media (min-width: 768px) {
             .main-content { flex-direction: row; }
             .layout-view { flex: 1; display: flex !important; }
             .panel { width: 380px; display: flex !important; flex-shrink: 0; border-left: 1px solid #cbd5e1; height: 100%; background: #f8fafc; }
-            .nav-bar { display: none !important; } /* 隱藏底部導航，左右分屏同時顯示 */
-            /* 讓 Canvas 在大螢幕自動縮放，確保完全不出界 */
-            .canvas { max-width: calc((100vh - 60px) * 1.414); max-height: calc(100vw / 1.414); height: auto; }
+            .nav-bar { display: none !important; }
+            .canvas { border-width: 4px; }
         }
 
-        /* 場地特徵元素 */
-        .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 26px; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 9px; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 4px; box-shadow: -4px 0 10px rgba(0,0,0,0.1); z-index: 2; pointer-events: none; }
-        .window { position: absolute; left: 0; bottom: 0; right: 0; height: 18px; background: #eff6ff; border-top: 2px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 7px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; z-index: 2; pointer-events: none; }
-        .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 15px; background: #f1f5f9; border-right: 2px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 7px; font-weight: bold; writing-mode: vertical-rl; z-index: 2; pointer-events: none; }
-        
-        /* 中央通道 */
-        .aisle { position: absolute; left: 15px; right: 26px; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
+        /* 場地特徵元素 (基於 Canvas 寬度 cqw 動態縮放) */
+        .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 3.5cqw; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 1.2cqw; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 0.5cqw; pointer-events: none; }
+        .window { position: absolute; left: 0; bottom: 0; right: 0; height: 2.5cqw; background: #eff6ff; border-top: 1px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 1cqw; font-weight: 900; letter-spacing: 0.5cqw; text-transform: uppercase; pointer-events: none; }
+        .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 2cqw; background: #f1f5f9; border-right: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1cqw; font-weight: bold; writing-mode: vertical-rl; pointer-events: none; }
+        .aisle { position: absolute; left: 2cqw; right: 3.5cqw; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
 
-        /* 桌子通用樣式 */
-        .table-wrap { position: absolute; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; touch-action: none; cursor: grab; }
+        /* 🌟 桌子與內部元素 (全部改用 cqw 單位，隨螢幕完美縮放) */
+        .table-wrap { position: absolute; width: 4.8cqw; height: 4.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; cursor: grab; }
         .table-wrap:active { cursor: grabbing; }
-        .table-wrap.transition { transition: transform 0.2s; }
-        .table-wrap.edit-mode { border: 2px dashed #cbd5e1; }
+        .table-wrap.transition { transition: transform 0.2s, top 0.2s, left 0.2s; }
+        .table-wrap.edit-mode { border: 1px dashed #cbd5e1; }
         .table-wrap.dragging { transform: translate(-50%, -50%) scale(1.1); z-index: 999 !important; transition: none !important; opacity: 0.9; }
         
-        .table-core { position: relative; z-index: 10; width: 22px; height: 22px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
+        .table-core { position: relative; z-index: 10; width: 65%; height: 65%; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
         .t-boy { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
         .t-girl { background: #fdf2f8; border-color: #fbcfe8; color: #be185d; }
-        .t-name { font-size: 6.5px; font-weight: 900; line-height: 1; }
-        .t-count { font-size: 5px; font-weight: bold; opacity: 0.6; margin-top: 1px; }
-        .del-btn { position: absolute; top: -4px; right: -4px; background: #ef4444; color: white; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; }
+        .t-name { font-size: 1cqw; font-weight: 900; line-height: 1; }
+        .t-count { font-size: 0.8cqw; font-weight: bold; opacity: 0.6; margin-top: 2px; }
+        .del-btn { position: absolute; top: -0.5cqw; right: -0.5cqw; background: #ef4444; color: white; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; cursor: pointer; }
         
-        /* 主家席專屬樣式 */
-        .table-wrap-main { width: 54px !important; height: 54px !important; z-index: 15; }
-        .table-core-main { width: 36px !important; height: 36px !important; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
-        .table-core-main .t-name { font-size: 10px !important; }
-        .table-core-main .t-count { font-size: 7px !important; margin-top: 2px !important; }
+        /* 🌟 主家席專屬動態樣式 */
+        .table-wrap-main { width: 7.5cqw !important; height: 7.5cqw !important; z-index: 15; }
+        .table-core-main { width: 70% !important; height: 70% !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
+        .table-core-main .t-name { font-size: 1.5cqw !important; }
+        .table-core-main .t-count { font-size: 1cqw !important; margin-top: 2px !important; }
 
-        /* 圓點 */
-        .dot { position: absolute; width: 4.5px; height: 4.5px; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
-        .dot-main { width: 6px !important; height: 6px !important; } 
+        /* 圓點動態大小 */
+        .dot { position: absolute; width: 0.8cqw; height: 0.8cqw; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
+        .dot-main { width: 1.2cqw !important; height: 1.2cqw !important; } 
         .dot-empty { background: #cbd5e1; }
         .dot-boy { background: #2563eb; }
         .dot-girl { background: #ec4899; }
@@ -81,8 +89,8 @@
         .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; border: none; background: none; font-size: 10px; font-weight: bold; gap: 4px; cursor: pointer; }
         .nav-item.active { color: #e11d48; }
 
-        /* 列表與表單 */
-        .panel { padding: 16px; background: #f8fafc; overflow-y: auto; height: 100%; display: flex; flex-direction: column; }
+        /* 🌟 列表與表單 (開放獨立滑動) */
+        .panel { padding: 16px; background: #f8fafc; overflow-y: auto; height: 100%; display: flex; flex-direction: column; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
         .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex-shrink: 0; }
         .flex-row { display: flex; justify-content: space-between; align-items: center; }
         .gap-2 { gap: 8px; }
@@ -100,34 +108,31 @@
         .filter-btn.active-girl { background: #ec4899; color: white; border-color: #ec4899; }
         .filter-btn.active-type { background: #e11d48; color: white; border-color: #e11d48; }
 
-        /* 模態框 (Modal) */
+        /* 🌟 模態框 (Modal) (保障內部清爽滑動) */
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
-        .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; }
+        .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; overflow: hidden; }
         @media (min-width: 768px) { .modal-content { height: 80vh; border-radius: 24px; margin-bottom: 5vh; } .modal-overlay { align-items: center; } }
+        .modal-scroll-area { flex: 1; overflow-y: auto; padding-bottom: 20px; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
         .modal-close { position: absolute; right: 20px; top: 20px; background: #f1f5f9; border: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;}
+        
         .guest-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
         .guest-item:last-child { border-bottom: none; }
         .check-btn { width: 22px; height: 22px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
         .bg-gray { background: #cbd5e1; }
         .bg-green { background: #10b981; }
 
-        /* Modal 內部分頁標籤 */
-        .modal-tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; margin-top: 12px; }
+        .modal-tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; margin-top: 12px; flex-shrink: 0; }
         .modal-tab-btn { flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: bold; color: #64748b; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.2s; }
         .modal-tab-btn.active { color: #e11d48; border-bottom-color: #e11d48; }
 
-        /* 切換屬性按鈕樣式 */
         .btn-side { padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s; }
         .btn-side-boy { background: #f1f5f9; color: #64748b; }
         .btn-side-boy.active { background: #2563eb; color: white; border-color: #2563eb; }
         .btn-side-girl { background: #f1f5f9; color: #64748b; }
         .btn-side-girl.active { background: #ec4899; color: white; border-color: #ec4899; }
 
-        /* 載入畫面 */
         .loading-screen { position: fixed; inset: 0; background: #0f172a; z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; }
         .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px; }
-        
-        /* 錯誤顯示 */
         #error-log { display: none; position: fixed; top: 0; left: 0; right: 0; background: red; color: white; padding: 20px; z-index: 9999; word-wrap: break-word; }
 
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -175,10 +180,7 @@
             const [saveStatus, setSaveStatus] = useState('');
             const [isCloudMode, setIsCloudMode] = useState(false);
             
-            // 統一的防呆確認視窗
             const [confirmAction, setConfirmAction] = useState(null);
-            
-            // 復原系統 (Undo)
             const [history, setHistory] = useState([]);
 
             const [tables, setTables] = useState([]);
@@ -217,14 +219,11 @@
 
             const guestTypesOptions = ['親戚', '朋友', '同事', '其他'];
 
-            // 深拷貝工具，確保歷史記錄不受後續修改污染
             const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
-            // 保存歷史紀錄供 Undo 使用
             const saveHistory = (currentTables, currentGuests) => {
                 setHistory(prev => {
                     const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
-                    // 最多保存 10 步，避免記憶體佔用
                     if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
                     return newHistory;
                 });
@@ -268,7 +267,7 @@
 
             const loadLocalData = () => {
                 setIsCloudMode(false); 
-                const savedData = localStorage.getItem('wedding_seating_local_v2');
+                const savedData = localStorage.getItem('wedding_seating_local_v3');
                 if (savedData) {
                     try {
                         const parsed = JSON.parse(savedData);
@@ -328,7 +327,8 @@
                 const listenToCloud = async () => {
                     const { doc, onSnapshot, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v6');
+                    // 升級至 v7 資料庫通道
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v7');
 
                     unsubscribe = onSnapshot(docRef, (document) => {
                         if (document.exists()) {
@@ -348,7 +348,7 @@
 
             const syncData = async (newTables, newGuests) => {
                 if (!isCloudMode) {
-                    localStorage.setItem('wedding_seating_local_v2', JSON.stringify({ tables: newTables, guests: newGuests }));
+                    localStorage.setItem('wedding_seating_local_v3', JSON.stringify({ tables: newTables, guests: newGuests }));
                     setSaveStatus('本機已儲存 ✓');
                     setTimeout(() => setSaveStatus(''), 2000);
                     return;
@@ -358,7 +358,7 @@
                 try {
                     const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v6');
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v7');
                     await setDoc(docRef, { tables: newTables, guests: newGuests });
                     setSaveStatus('雲端已儲存 ✓');
                     setTimeout(() => setSaveStatus(''), 2000);
@@ -410,6 +410,8 @@
 
             const handleMove = (e) => {
                 if(!dragIdState || !containerRef.current || !editMode) return;
+                
+                // 完全防止手機拖曳時畫面原生滾動 (確保滑順)
                 if (e.cancelable) { e.preventDefault(); }
 
                 let clientX, clientY;
@@ -438,7 +440,6 @@
                 setDragId(id);
             };
 
-            // 觸發安全重置
             const promptReset = () => {
                 setConfirmAction({
                     title: '危險操作',
@@ -452,6 +453,7 @@
                 });
             };
 
+            // 🌟 將圓點的渲染改為基於 cqw 的純動態比例計算
             const renderTable = (table) => {
                 const assigned = guests.filter(g => g.tableId === table.id);
                 const isMain = table.id === 1 || table.isMain;
@@ -460,13 +462,15 @@
                 const dots = [];
                 for(let i=0; i<assigned.length && i<table.cap; i++) {
                     const angle = (i * (360 / table.cap) - 90) * (Math.PI / 180);
-                    const radius = isMain ? 24 : 15; 
-                    const dx = Math.cos(angle) * radius; 
-                    const dy = Math.sin(angle) * radius;
+                    // 使用 cqw 單位比例：主桌較大，普通桌較小
+                    const radiusCqw = isMain ? 3.6 : 2.4; 
+                    const dx = Math.cos(angle) * radiusCqw; 
+                    const dy = Math.sin(angle) * radiusCqw;
                     const g = assigned[i];
                     let dotCls = `dot ${isMain ? 'dot-main' : ''} dot-empty`;
                     if(g.attended) dotCls = `dot ${isMain ? 'dot-main' : ''} ${table.side==='男家'?'dot-boy':'dot-girl'}`;
-                    dots.push(<div key={i} className={dotCls} style={{ transform: `translate(${dx}px, ${dy}px)` }} />);
+                    // 直接注入 cqw 變數
+                    dots.push(<div key={i} className={dotCls} style={{ transform: `translate(${dx}cqw, ${dy}cqw)` }} />);
                 }
 
                 let tCls = table.side === '男家' ? 't-boy' : 't-girl';
@@ -492,12 +496,11 @@
                                 className="del-btn" 
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    // 刪除桌子前防呆確認
                                     setConfirmAction({
                                         title: '刪除桌子',
                                         message: `確定要刪除「${table.name}」嗎？已安排在此桌的賓客將變成未分配狀態。`,
                                         onConfirm: () => {
-                                            saveHistory(tables, guests); // 存入Undo
+                                            saveHistory(tables, guests);
                                             const newT = tables.filter(t => t.id !== table.id);
                                             const newG = guests.map(g => g.tableId === table.id ? { ...g, tableId: null, attended: false } : g);
                                             updateBothData(newT, newG);
@@ -506,7 +509,7 @@
                                     });
                                 }}
                             >
-                                <Icon type="x" size="8" />
+                                <Icon type="x" size="10" />
                             </button>
                         )}
                     </div>
@@ -575,7 +578,7 @@
                         </div>
                     </div>
 
-                    {/* 主要內容區塊 (響應式：手機上下，電腦左右) */}
+                    {/* 主要內容區塊 */}
                     <div className="main-content">
                         
                         {/* 視圖 1: 場地佈局 */}
@@ -635,7 +638,7 @@
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '8px', flex: 1, overflowY: 'auto' }}>
+                            <div style={{ marginTop: '8px', flex: 1 }}>
                                 {filteredGuests.map(g => (
                                     <div key={g.id} className="card flex-row" style={{ padding: '10px 12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -661,7 +664,7 @@
                         </div>
                     </div>
 
-                    {/* 底部導航欄 (僅手機版顯示) */}
+                    {/* 底部導航欄 */}
                     <div className="nav-bar">
                         <button className={`nav-item ${tab==='layout'?'active':''}`} onClick={()=>setTab('layout')}><Icon type="layout"/>場地</button>
                         <button className={`nav-item ${tab==='guests'?'active':''}`} onClick={()=>setTab('guests')}><Icon type="users"/>賓客</button>
@@ -691,7 +694,7 @@
                                     <button className={`modal-tab-btn ${modalTab === 'candidates' ? 'active' : ''}`} onClick={() => setModalTab('candidates')}>➕ 加入賓客</button>
                                 </div>
 
-                                <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }}>
+                                <div className="modal-scroll-area">
                                     {modalTab === 'seated' && (
                                         <div>
                                             <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '8px', textAlign: 'center' }}>點擊左側圓圈為賓客簽到</div>
@@ -833,7 +836,7 @@
                         </div>
                     )}
 
-                    {/* 統一的全局防呆確認 Modal */}
+                    {/* 統一防呆確認 Modal */}
                     {confirmAction && (
                         <div className="modal-overlay" style={{ alignItems: 'center', zIndex: 9999 }}>
                             <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '80%', maxWidth: '300px', textAlign: 'center', animation: 'slideUp 0.2s ease-out' }}>
@@ -856,5 +859,3 @@
     </script>
 </body>
 </html>
-
-```
