@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>星海薈座位管理 (強效斷線保護版)</title>
+    <!-- 穩定的 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; overflow: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+        #root { height: 100vh; display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+        
+        /* 頂部標題 */
+        .header { background: #0f172a; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 50; }
+        .header-title { font-size: 14px; font-weight: bold; font-style: italic; display: flex; align-items: center; }
+        .btn-icon { background: #334155; color: #94a3b8; border: none; padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; }
+        .btn-icon.active { background: #f59e0b; color: white; }
+        
+        /* 內容區 */
+        .main-content { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        
+        /* 場地佈局 */
+        .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; }
+        .canvas { width: 100%; aspect-ratio: 1.414/1; background: white; position: relative; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden; touch-action: none; border-radius: 4px; }
+        
+        /* 場地特徵元素 */
+        .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 26px; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 9px; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 4px; box-shadow: -4px 0 10px rgba(0,0,0,0.1); z-index: 2; pointer-events: none; }
+        .window { position: absolute; left: 0; bottom: 0; right: 0; height: 18px; background: #eff6ff; border-top: 2px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 7px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; z-index: 2; pointer-events: none; }
+        .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 15px; background: #f1f5f9; border-right: 2px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 7px; font-weight: bold; writing-mode: vertical-rl; z-index: 2; pointer-events: none; }
+        
+        /* 中央通道 */
+        .aisle { position: absolute; left: 15px; right: 26px; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
+
+        /* 桌子通用樣式 */
+        .table-wrap { position: absolute; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; touch-action: none; cursor: grab; }
+        .table-wrap:active { cursor: grabbing; }
+        .table-wrap.transition { transition: transform 0.2s; }
+        .table-wrap.edit-mode { border: 2px dashed #cbd5e1; }
+        .table-wrap.dragging { transform: translate(-50%, -50%) scale(1.1); z-index: 999 !important; transition: none !important; opacity: 0.9; }
+        
+        .table-core { position: relative; z-index: 10; width: 22px; height: 22px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
+        .t-boy { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+        .t-girl { background: #fdf2f8; border-color: #fbcfe8; color: #be185d; }
+        .t-name { font-size: 6.5px; font-weight: 900; line-height: 1; }
+        .t-count { font-size: 5px; font-weight: bold; opacity: 0.6; margin-top: 1px; }
+        .del-btn { position: absolute; top: -4px; right: -4px; background: #ef4444; color: white; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; }
+        
+        /* 主家席專屬樣式 */
+        .table-wrap-main { width: 54px !important; height: 54px !important; z-index: 15; }
+        .table-core-main { width: 36px !important; height: 36px !important; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
+        .table-core-main .t-name { font-size: 10px !important; }
+        .table-core-main .t-count { font-size: 7px !important; margin-top: 2px !important; }
+
+        /* 圓點 */
+        .dot { position: absolute; width: 4.5px; height: 4.5px; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
+        .dot-main { width: 6px !important; height: 6px !important; } 
+        .dot-empty { background: #cbd5e1; }
+        .dot-boy { background: #2563eb; }
+        .dot-girl { background: #ec4899; }
+        
+        /* 底部導航 */
+        .nav-bar { height: 60px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; padding-bottom: 5px; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; border: none; background: none; font-size: 10px; font-weight: bold; gap: 4px; }
+        .nav-item.active { color: #e11d48; }
+
+        /* 列表與表單 */
+        .panel { padding: 16px; background: #f8fafc; overflow-y: auto; height: 100%; display: flex; flex-direction: column; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex-shrink: 0; }
+        .flex-row { display: flex; justify-content: space-between; align-items: center; }
+        .gap-2 { gap: 8px; }
+        .input-text { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; outline: none; }
+        .input-text:focus { border-color: #e11d48; }
+        .select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; background: white; outline: none; }
+        .btn-action { background: #e11d48; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; }
+        
+        /* 篩選標籤 */
+        .filter-group { display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px; }
+        .filter-group::-webkit-scrollbar { display: none; }
+        .filter-btn { padding: 6px 12px; border-radius: 16px; font-size: 10px; font-weight: bold; background: white; color: #64748b; border: 1px solid #cbd5e1; cursor: pointer; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
+        .filter-btn.active-all { background: #334155; color: white; border-color: #334155; }
+        .filter-btn.active-boy { background: #2563eb; color: white; border-color: #2563eb; }
+        .filter-btn.active-girl { background: #ec4899; color: white; border-color: #ec4899; }
+        .filter-btn.active-type { background: #e11d48; color: white; border-color: #e11d48; }
+
+        /* 模態框 (Modal) */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
+        .modal-content { background: white; width: 100%; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; }
+        .modal-close { position: absolute; right: 20px; top: 20px; background: #f1f5f9; border: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;}
+        .guest-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .guest-item:last-child { border-bottom: none; }
+        .check-btn { width: 22px; height: 22px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; }
+        .bg-gray { background: #cbd5e1; }
+        .bg-green { background: #10b981; }
+
+        /* Modal 內部分頁標籤 */
+        .modal-tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; margin-top: 12px; }
+        .modal-tab-btn { flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: bold; color: #64748b; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.2s; }
+        .modal-tab-btn.active { color: #e11d48; border-bottom-color: #e11d48; }
+
+        /* 切換屬性按鈕樣式 */
+        .btn-side { padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s; }
+        .btn-side-boy { background: #f1f5f9; color: #64748b; }
+        .btn-side-boy.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .btn-side-girl { background: #f1f5f9; color: #64748b; }
+        .btn-side-girl.active { background: #ec4899; color: white; border-color: #ec4899; }
+
+        /* 載入畫面 */
+        .loading-screen { position: fixed; inset: 0; background: #0f172a; z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 16px; }
+        
+        /* 錯誤顯示 */
+        #error-log { display: none; position: fixed; top: 0; left: 0; right: 0; background: red; color: white; padding: 20px; z-index: 9999; word-wrap: break-word; }
+
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="error-log"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        window.onerror = function(message, source, lineno, colno, error) {
+            const log = document.getElementById('error-log');
+            log.style.display = 'block';
+            log.innerHTML = `<h3>⚠️ 運行錯誤</h3><p>${message}</p><p>Line: ${lineno}</p>`;
+            return false;
+        };
+
+        const { useState, useEffect, useRef } = React;
+
+        const Icon = ({ type, size = "18" }) => {
+            const paths = {
+                settings: "M12.22 2h-1.44a1 1 0 00-.99.82l-.23 1.33a8.21 8.21 0 00-2 1.15l-1.25-.5a1 1 0 00-1.21.36l-.72 1.25a1 1 0 00.22 1.25l1.05.81a8 8 0 000 2.32l-1.05.81a1 1 0 00-.22 1.25l.72 1.25a1 1 0 001.21.36l1.25-.5a8.21 8.21 0 002 1.15l.23 1.33a1 1 0 00.99.82h1.44a1 1 0 00.99-.82l.23-1.33a8.21 8.21 0 002-1.15l1.25.5a1 1 0 001.21-.36l.72-1.25a1 1 0 00-.22-1.25l-1.05-.81a8 8 0 000-2.32l1.05-.81a1 1 0 00.22-1.25l-.72-1.25a1 1 0 00-1.21-.36l-1.25.5a8.21 8.21 0 00-2-1.15l-.23-1.33a1 1 0 00-.99-.82z",
+                plus: "M12 5v14M5 12h14",
+                x: "M18 6L6 18M6 6l12 12",
+                layout: "M3 3h18v18H3z M3 9h18 M9 21V9",
+                users: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+                check: "M20 6L9 17l-5-5",
+                trash: "M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
+                filter: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
+                alert: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+                edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
+                cloud: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+            };
+            return (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={paths[type]} />
+                </svg>
+            );
+        };
+
+        const App = () => {
+            const [isLoaded, setIsLoaded] = useState(false);
+            const [loadMsg, setLoadMsg] = useState('系統啟動中...');
+            const [saveStatus, setSaveStatus] = useState('');
+            const [isCloudMode, setIsCloudMode] = useState(false);
+            
+            const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+            const [tables, setTables] = useState([]);
+            const [guests, setGuests] = useState([]);
+            const [tab, setTab] = useState('layout');
+            const [editMode, setEditMode] = useState(false);
+            const [selTableId, setSelTableId] = useState(null);
+            
+            const [gName, setGName] = useState('');
+            const [gSide, setGSide] = useState('男家');
+            const [gType, setGType] = useState('親戚');
+            const [gTable, setGTable] = useState('none');
+
+            const [editingGuest, setEditingGuest] = useState(null);
+
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterSide, setFilterSide] = useState('全部'); 
+            const [filterType, setFilterType] = useState('全部'); 
+
+            const [modalTab, setModalTab] = useState('seated'); 
+            const [modalSearchTerm, setModalSearchTerm] = useState('');
+            const [modalFilterSide, setModalFilterSide] = useState('全部');
+            const [modalFilterType, setModalFilterType] = useState('全部');
+
+            const containerRef = useRef(null);
+            
+            // 修正拖曳時狀態衝突的 Ref
+            const [dragIdState, setDragIdState] = useState(null);
+            const dragIdRef = useRef(null);
+            const setDragId = (id) => {
+                setDragIdState(id);
+                dragIdRef.current = id;
+            };
+
+            const [db, setDb] = useState(null);
+            const [user, setUser] = useState(null);
+
+            const guestTypesOptions = ['親戚', '朋友', '同事', '其他'];
+
+            // 佈局初始化
+            const generateStarviewLayout = () => {
+                const initT = [];
+                initT.push({ id: 1, name: '主家席', side: '男家', cap: 12, x: 80, y: 50, isMain: true });
+                for(let i=0; i<12; i++) {
+                    const col = i % 6;            
+                    const row = Math.floor(i / 6); 
+                    const x = 66 - (col * 9.5);   
+                    const y = row === 0 ? 20 : 33; 
+                    initT.push({ id: i+2, name: `${i+2}桌`, side: '男家', cap: 12, x, y, isMain: false });
+                }
+                for(let i=0; i<12; i++) {
+                    const col = i % 6;
+                    const row = Math.floor(i / 6);
+                    const x = 66 - (col * 9.5);
+                    const y = row === 0 ? 67 : 80; 
+                    initT.push({ id: i+14, name: `${i+14}桌`, side: '女家', cap: 12, x, y, isMain: false });
+                }
+                const initG = [];
+                for(let i=0; i<120; i++) {
+                    let side = i%2===0 ? '男家' : '女家';
+                    let type = guestTypesOptions[i % 4];
+                    initG.push({ id: `g${i}`, name: `${side}${type}${i+1}`, side, type, tableId: (i%25)+1, attended: i<30 });
+                }
+                return { tables: initT, guests: initG };
+            };
+
+            // ==========================================
+            // 新增：安全讀取本機資料的獨立函式
+            // ==========================================
+            const loadLocalData = () => {
+                setIsCloudMode(false); // 標記為離線模式
+                const savedData = localStorage.getItem('wedding_seating_local_v1');
+                if (savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        setTables(parsed.tables || []);
+                        setGuests(parsed.guests || []);
+                    } catch(e) { console.error("解析本機資料失敗", e); }
+                } else {
+                    const defaultData = generateStarviewLayout();
+                    setTables(defaultData.tables);
+                    setGuests(defaultData.guests);
+                }
+            };
+
+            // ==========================================
+            // 核心 1：Firebase 與 LocalStorage 雙模啟動
+            // ==========================================
+            useEffect(() => {
+                const initSystem = async () => {
+                    // 如果沒有 Firebase 環境變數，自動降級為 LocalStorage
+                    if (typeof __firebase_config === 'undefined') {
+                        loadLocalData();
+                        setIsLoaded(true);
+                        return;
+                    }
+
+                    // 雲端連線模式
+                    setIsCloudMode(true);
+                    setLoadMsg('連線至雲端伺服器中...');
+                    try {
+                        const firebaseConfig = JSON.parse(__firebase_config);
+                        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
+                        const { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
+                        const { getFirestore } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+
+                        const app = initializeApp(firebaseConfig);
+                        const auth = getAuth(app);
+                        const firestoreDb = getFirestore(app);
+                        setDb(firestoreDb);
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+
+                        onAuthStateChanged(auth, (u) => {
+                            setUser(u);
+                        });
+                    } catch (error) {
+                        console.error("Firebase init failed", error);
+                        setLoadMsg('雲端連線失敗，自動切換至離線模式...');
+                        // 確保連線失敗時，也能正確讀取本機資料，避免桌子消失
+                        loadLocalData(); 
+                        setTimeout(() => setIsLoaded(true), 1500);
+                    }
+                };
+                initSystem();
+            }, []);
+
+            // ==========================================
+            // 核心 2：載入與監聽雲端資料 (即時同步)
+            // ==========================================
+            useEffect(() => {
+                if (!isCloudMode || !user || !db) return;
+
+                setLoadMsg('同步雲端資料中...');
+                let unsubscribe;
+
+                const listenToCloud = async () => {
+                    const { doc, onSnapshot, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db');
+
+                    unsubscribe = onSnapshot(docRef, (document) => {
+                        if (document.exists()) {
+                            if (!dragIdRef.current) {
+                                setTables(document.data().tables || []);
+                            }
+                            setGuests(document.data().guests || []);
+                            setIsLoaded(true);
+                        } else {
+                            // 初始化雲端資料庫
+                            const defaultData = generateStarviewLayout();
+                            setDoc(docRef, defaultData).then(() => {
+                                setIsLoaded(true);
+                            });
+                        }
+                    }, (err) => {
+                        console.error("即時同步錯誤", err);
+                    });
+                };
+
+                listenToCloud();
+                return () => { if(unsubscribe) unsubscribe(); };
+            }, [user, db, isCloudMode]);
+
+            // ==========================================
+            // 核心 3：統一儲存函式 (寫入雲端或本機)
+            // ==========================================
+            const syncData = async (newTables, newGuests) => {
+                // 如果是離線模式，寫入 LocalStorage
+                if (!isCloudMode) {
+                    localStorage.setItem('wedding_seating_local_v1', JSON.stringify({ tables: newTables, guests: newGuests }));
+                    setSaveStatus('本機已儲存 ✓');
+                    setTimeout(() => setSaveStatus(''), 2000);
+                    return;
+                }
+
+                if (!db || !user) return;
+                setSaveStatus('同步中...');
+                try {
+                    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db');
+                    await setDoc(docRef, { tables: newTables, guests: newGuests });
+                    setSaveStatus('雲端已儲存 ✓');
+                    setTimeout(() => setSaveStatus(''), 2000);
+                } catch (e) {
+                    setSaveStatus('同步失敗 ❌');
+                }
+            };
+
+            const executeReset = () => {
+                const def = generateStarviewLayout();
+                setTables(def.tables);
+                setGuests(def.guests);
+                syncData(def.tables, def.guests);
+                setShowResetConfirm(false);
+            };
+
+            useEffect(() => {
+                if(selTableId === null) {
+                    setModalTab('seated');
+                    setModalSearchTerm('');
+                    setModalFilterSide('全部');
+                    setModalFilterType('全部');
+                } else {
+                    const currGuests = guests.filter(g => g.tableId === selTableId);
+                    if(currGuests.length === 0) setModalTab('candidates');
+                    else setModalTab('seated');
+                }
+            }, [selTableId]);
+
+            // ==========================================
+            // 邏輯操作 (全部連接 syncData)
+            // ==========================================
+            const handleAddGuest = () => {
+                if(!gName) return;
+                let tid = gTable === 'none' ? null : parseInt(gTable);
+                const newG = [...guests, { id: `g${Date.now()}`, name: gName, side: gSide, type: gType, tableId: tid, attended: false }];
+                setGuests(newG);
+                syncData(tables, newG);
+                setGName('');
+            };
+
+            const updateTableSide = (id, newSide) => {
+                const newT = tables.map(t => t.id === id ? { ...t, side: newSide } : t);
+                setTables(newT);
+                syncData(newT, guests);
+            };
+
+            const handleMove = (e) => {
+                if(!dragIdState || !containerRef.current || !editMode) return;
+                if (e.cancelable) { e.preventDefault(); }
+
+                let clientX, clientY;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+                } else if (e.clientX && e.clientY) {
+                    clientX = e.clientX; clientY = e.clientY;
+                } else return; 
+
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = Math.max(3, Math.min(97, ((clientX - rect.left) / rect.width) * 100));
+                const y = Math.max(3, Math.min(97, ((clientY - rect.top) / rect.height) * 100));
+                
+                setTables(prev => prev.map(t => t.id === dragIdState ? {...t, x, y} : t));
+            };
+
+            const handleEndDrag = () => {
+                if (dragIdState) {
+                    setDragId(null);
+                    syncData(tables, guests); 
+                }
+            };
+
+            const handleStartDrag = (e, id) => {
+                if(!editMode) return;
+                setDragId(id);
+            };
+
+            const updateGuestData = (newG) => {
+                setGuests(newG);
+                syncData(tables, newG);
+            };
+            const updateTableData = (newT) => {
+                setTables(newT);
+                syncData(newT, guests);
+            };
+
+            // ==================
+            // 桌子渲染函式
+            // ==================
+            const renderTable = (table) => {
+                const assigned = guests.filter(g => g.tableId === table.id);
+                const isMain = table.id === 1 || table.isMain;
+                const isDragging = dragIdState === table.id;
+                
+                const dots = [];
+                for(let i=0; i<assigned.length && i<table.cap; i++) {
+                    const angle = (i * (360 / table.cap) - 90) * (Math.PI / 180);
+                    const radius = isMain ? 24 : 15; 
+                    const dx = Math.cos(angle) * radius; 
+                    const dy = Math.sin(angle) * radius;
+                    const g = assigned[i];
+                    let dotCls = `dot ${isMain ? 'dot-main' : ''} dot-empty`;
+                    if(g.attended) dotCls = `dot ${isMain ? 'dot-main' : ''} ${table.side==='男家'?'dot-boy':'dot-girl'}`;
+                    dots.push(<div key={i} className={dotCls} style={{ transform: `translate(${dx}px, ${dy}px)` }} />);
+                }
+
+                let tCls = table.side === '男家' ? 't-boy' : 't-girl';
+                const wrapClass = `table-wrap ${editMode ? 'edit-mode' : ''} ${!isDragging ? 'transition' : 'dragging'} ${isMain ? 'table-wrap-main' : ''}`;
+                const coreClass = `table-core ${tCls} ${isMain ? 'table-core-main' : ''}`;
+                
+                return (
+                    <div 
+                        key={table.id}
+                        className={wrapClass}
+                        style={{ left: `${table.x}%`, top: `${table.y}%` }}
+                        onMouseDown={(e) => handleStartDrag(e, table.id)}
+                        onTouchStart={(e) => handleStartDrag(e, table.id)}
+                        onClick={() => !editMode && setSelTableId(table.id)}
+                    >
+                        {dots}
+                        <div className={coreClass}>
+                            <span className="t-name">{table.name.includes('主') ? '主' : table.id}</span>
+                            <span className="t-count">{assigned.length}</span>
+                        </div>
+                        {editMode && <button className="del-btn" onClick={(e)=>{e.stopPropagation(); updateTableData(tables.filter(t=>t.id!==table.id));}}><Icon type="x" size="8" /></button>}
+                    </div>
+                );
+            };
+
+            const currTable = tables.find(t => t.id === selTableId);
+            const currGuests = guests.filter(g => g.tableId === selTableId);
+
+            const filteredGuests = guests.filter(g => {
+                if (searchTerm && !g.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+                if (filterSide !== '全部' && g.side !== filterSide) return false;
+                if (filterType !== '全部' && g.type !== filterType) return false;
+                return true;
+            });
+
+            const modalFilteredCandidates = guests.filter(g => {
+                if (g.tableId !== null) return false;
+                if (modalSearchTerm && !g.name.toLowerCase().includes(modalSearchTerm.toLowerCase())) return false;
+                if (modalFilterSide !== '全部' && g.side !== modalFilterSide) return false;
+                if (modalFilterType !== '全部' && g.type !== modalFilterType) return false;
+                return true;
+            });
+
+            if (!isLoaded) {
+                return (
+                    <div className="loading-screen">
+                        <div className="spinner"></div>
+                        <div style={{ fontSize: '14px' }}>{loadMsg}</div>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+                    
+                    {/* 頂部控制列 */}
+                    <div className="header">
+                        <div className="header-title">
+                            The ONE 星海薈
+                            <span style={{ fontSize: '10px', color: isCloudMode ? '#10b981' : '#f59e0b', marginLeft: '10px', fontWeight: 'normal', display:'flex', alignItems:'center', gap:'2px' }}>
+                                {isCloudMode && <Icon type="cloud" size="12" />} {saveStatus || (isCloudMode ? '雲端共用中' : '本機模式')}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {editMode && (
+                                <button className="btn-icon" style={{ background: '#ef4444', color: 'white' }} onClick={() => setShowResetConfirm(true)}>
+                                    <Icon type="trash" size="14" />
+                                </button>
+                            )}
+                            <button className={`btn-icon ${editMode ? 'active' : ''}`} onClick={() => setEditMode(!editMode)}>
+                                <Icon type="settings" size="16" />
+                            </button>
+                            <button className="btn-icon" onClick={() => {
+                                const nid = tables.length>0 ? Math.max(...tables.map(t=>t.id))+1 : 1;
+                                updateTableData([...tables, { id: nid, name:`${nid}桌`, side:'男家', cap:12, x:50, y:50 }]);
+                            }}>
+                                <Icon type="plus" size="16" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 主要內容區塊 */}
+                    <div className="main-content">
+                        
+                        {/* 視圖 1: 場地佈局 */}
+                        <div className={`layout-view ${tab === 'layout' ? '' : 'hidden'}`}>
+                            <div 
+                                className="canvas" 
+                                ref={containerRef} 
+                                onTouchMove={handleMove} 
+                                onMouseMove={handleMove} 
+                                onMouseUp={handleEndDrag} 
+                                onTouchEnd={handleEndDrag} 
+                                onMouseLeave={handleEndDrag}
+                            >
+                                <div className="stage">宴會大禮堂 STAGE</div>
+                                <div className="window">270° 海景露台 SEA VIEW TERRACE</div>
+                                <div className="entrance">入口</div>
+                                <div className="aisle"></div>
+                                {tables.map(t => renderTable(t))}
+                            </div>
+                        </div>
+
+                        {/* 視圖 2: 賓客管理 */}
+                        <div className={`panel ${tab === 'guests' ? '' : 'hidden'}`}>
+                            <div className="card">
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>快速錄入新賓客</div>
+                                <div className="flex-row gap-2" style={{ marginBottom: '8px' }}>
+                                    <input type="text" className="input-text" placeholder="輸入賓客姓名" value={gName} onChange={e=>setGName(e.target.value)} />
+                                    <button className="btn-action" onClick={handleAddGuest}>加入名單</button>
+                                </div>
+                                <div className="flex-row gap-2">
+                                    <select className="select" style={{width:'70px'}} value={gSide} onChange={e=>setGSide(e.target.value)}>
+                                        <option value="男家">男家</option><option value="女家">女家</option>
+                                    </select>
+                                    <select className="select" style={{width:'70px'}} value={gType} onChange={e=>setGType(e.target.value)}>
+                                        {guestTypesOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <select className="select" style={{flex:1}} value={gTable} onChange={e=>setGTable(e.target.value)}>
+                                        <option value="none">-- 安排桌次 --</option>
+                                        {tables.map(t => <option key={t.id} value={t.id}>{t.name} ({guests.filter(g=>g.tableId===t.id).length})</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="card" style={{ padding: '8px 12px', marginTop: '16px' }}>
+                                <div style={{ marginBottom: '8px' }}>
+                                    <input type="text" className="input-text" style={{ width: '100%', padding: '6px 10px' }} placeholder="🔍 搜尋已錄入賓客姓名..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                </div>
+                                <div className="filter-group">
+                                    {['全部', '男家', '女家'].map(s => (
+                                        <button key={s} className={`filter-btn ${filterSide === s ? (s === '男家' ? 'active-boy' : (s === '女家' ? 'active-girl' : 'active-all')) : ''}`} onClick={() => setFilterSide(s)}>{s}</button>
+                                    ))}
+                                </div>
+                                <div className="filter-group" style={{ marginBottom: 0, paddingBottom: 0 }}>
+                                    {['全部', ...guestTypesOptions].map(t => (
+                                        <button key={t} className={`filter-btn ${filterType === t ? 'active-type' : ''}`} onClick={() => setFilterType(t)}>{t}</button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: '8px', flex: 1, overflowY: 'auto' }}>
+                                {filteredGuests.map(g => (
+                                    <div key={g.id} className="card flex-row" style={{ padding: '10px 12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div className={`dot ${g.attended ? (g.side==='男家'?'dot-boy':'dot-girl') : 'dot-empty'}`} style={{position:'static', width:'8px', height:'8px'}}></div>
+                                            <div>
+                                                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b' }}>{g.name}</div>
+                                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{g.side} · {g.type}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ fontSize: '10px', fontWeight: 'bold', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '4px' }}>
+                                                {g.tableId ? `T${g.tableId}` : '未排'}
+                                            </div>
+                                            <button style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }} onClick={() => setEditingGuest({...g})}>
+                                                <Icon type="edit" size="16" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {filteredGuests.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>找不到符合條件的賓客</div>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 底部導航欄 */}
+                    <div className="nav-bar">
+                        <button className={`nav-item ${tab==='layout'?'active':''}`} onClick={()=>setTab('layout')}><Icon type="layout"/>場地</button>
+                        <button className={`nav-item ${tab==='guests'?'active':''}`} onClick={()=>setTab('guests')}><Icon type="users"/>賓客</button>
+                    </div>
+
+                    {/* 桌子管理 Modal */}
+                    {currTable && !editMode && (
+                        <div className="modal-overlay" onClick={(e) => {if(e.target === e.currentTarget) setSelTableId(null)}}>
+                            <div className="modal-content">
+                                <button className="modal-close" onClick={() => setSelTableId(null)}><Icon type="x"/></button>
+                                
+                                <div className="flex-row" style={{ justifyContent: 'flex-start', gap: '16px', alignItems: 'flex-start' }}>
+                                    <div className={`table-core ${currTable.side==='男家'?'t-boy':'t-girl'}`} style={{ width: '45px', height: '45px', fontSize: '16px', flexShrink: 0 }}>
+                                        {currTable.name.includes('主') ? '主' : currTable.id}
+                                    </div>
+                                    <div style={{ width: '100%' }}>
+                                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{currTable.name}</div>
+                                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                            <button className={`btn-side btn-side-boy ${currTable.side === '男家' ? 'active' : ''}`} onClick={() => updateTableSide(currTable.id, '男家')}>男家席</button>
+                                            <button className={`btn-side btn-side-girl ${currTable.side === '女家' ? 'active' : ''}`} onClick={() => updateTableSide(currTable.id, '女家')}>女家席</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="modal-tabs">
+                                    <button className={`modal-tab-btn ${modalTab === 'seated' ? 'active' : ''}`} onClick={() => setModalTab('seated')}>已入座 ({currGuests.length}/{currTable.cap})</button>
+                                    <button className={`modal-tab-btn ${modalTab === 'candidates' ? 'active' : ''}`} onClick={() => setModalTab('candidates')}>➕ 加入賓客</button>
+                                </div>
+
+                                <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }}>
+                                    
+                                    {modalTab === 'seated' && (
+                                        <div>
+                                            <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '8px', textAlign: 'center' }}>點擊左側圓圈為賓客簽到</div>
+                                            {currGuests.map(g => (
+                                                <div key={g.id} className="guest-item">
+                                                    <div className="flex-row gap-2" style={{ justifyContent: 'flex-start' }}>
+                                                        <button className={`check-btn ${g.attended ? 'bg-green' : 'bg-gray'}`} onClick={() => updateGuestData(guests.map(item => item.id === g.id ? {...item, attended: !item.attended} : item))}>
+                                                            {g.attended && <Icon type="check" size="14" />}
+                                                        </button>
+                                                        <div>
+                                                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: g.attended ? '#10b981' : '#1e293b' }}>{g.name}</div>
+                                                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>{g.side} · {g.type}</div>
+                                                        </div>
+                                                    </div>
+                                                    <button style={{ background:'none', border:'none', color:'#cbd5e1', cursor: 'pointer', padding: '4px' }} onClick={() => updateGuestData(guests.map(item => item.id === g.id ? {...item, tableId: null, attended: false} : item))}>
+                                                        <Icon type="trash" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {currGuests.length === 0 && (
+                                                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                                                    <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>此桌目前無人</div>
+                                                    <button className="btn-action" onClick={() => setModalTab('candidates')}>前往加入賓客</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {modalTab === 'candidates' && (
+                                        <div>
+                                            <div style={{ padding: '0 0 12px 0' }}>
+                                                <div style={{ marginBottom: '8px' }}>
+                                                    <input type="text" className="input-text" style={{ width: '100%', padding: '8px 10px', fontSize: '12px' }} placeholder="🔍 搜尋未分配賓客..." value={modalSearchTerm} onChange={e => setModalSearchTerm(e.target.value)} />
+                                                </div>
+                                                <div className="filter-group">
+                                                    {['全部', '男家', '女家'].map(s => (
+                                                        <button key={s} className={`filter-btn ${modalFilterSide === s ? (s === '男家' ? 'active-boy' : (s === '女家' ? 'active-girl' : 'active-all')) : ''}`} onClick={() => setModalFilterSide(s)}>{s}</button>
+                                                    ))}
+                                                </div>
+                                                <div className="filter-group" style={{ marginBottom: 0, paddingBottom: 0 }}>
+                                                    {['全部', ...guestTypesOptions].map(t => (
+                                                        <button key={t} className={`filter-btn ${modalFilterType === t ? 'active-type' : ''}`} onClick={() => setModalFilterType(t)}>{t}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {modalFilteredCandidates.map(g => (
+                                                <div key={g.id} className="guest-item" onClick={() => {
+                                                    if(currGuests.length >= currTable.cap) { alert("此桌已滿！"); return; }
+                                                    updateGuestData(guests.map(item => item.id === g.id ? {...item, tableId: currTable.id} : item));
+                                                }} style={{ cursor: 'pointer' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{g.name}</div>
+                                                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>{g.side} · {g.type}</div>
+                                                    </div>
+                                                    <div style={{ background: '#f1f5f9', color: '#64748b', padding: '4px', borderRadius: '50%' }}><Icon type="plus" size="14" /></div>
+                                                </div>
+                                            ))}
+                                            {modalFilteredCandidates.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#cbd5e1', fontSize: '12px' }}>沒有符合條件的未分配賓客</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 賓客編輯 Modal */}
+                    {editingGuest && (
+                        <div className="modal-overlay" onClick={(e) => {if(e.target === e.currentTarget) setEditingGuest(null)}}>
+                            <div className="modal-content" style={{ paddingBottom: '30px', height: 'auto' }}>
+                                <button className="modal-close" onClick={() => setEditingGuest(null)}><Icon type="x"/></button>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>編輯賓客資訊</div>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', marginBottom: '6px' }}>賓客姓名</div>
+                                        <input type="text" className="input-text" style={{ width: '100%' }} value={editingGuest.name} onChange={e => setEditingGuest({...editingGuest, name: e.target.value})} />
+                                    </div>
+                                    
+                                    <div className="flex-row gap-2">
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', marginBottom: '6px' }}>男家/女家</div>
+                                            <select className="select" style={{ width: '100%' }} value={editingGuest.side} onChange={e => setEditingGuest({...editingGuest, side: e.target.value})}>
+                                                <option value="男家">男家</option>
+                                                <option value="女家">女家</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', marginBottom: '6px' }}>關係分類</div>
+                                            <select className="select" style={{ width: '100%' }} value={editingGuest.type} onChange={e => setEditingGuest({...editingGuest, type: e.target.value})}>
+                                                {guestTypesOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', marginBottom: '6px' }}>安排桌次</div>
+                                        <select className="select" style={{ width: '100%', background: '#eff6ff', borderColor: '#bfdbfe' }} value={editingGuest.tableId || 'none'} onChange={e => setEditingGuest({...editingGuest, tableId: e.target.value === 'none' ? null : parseInt(e.target.value)})}>
+                                            <option value="none">-- 未分配座位 --</option>
+                                            {tables.map(t => <option key={t.id} value={t.id}>
+                                                {t.name} (已排 {guests.filter(g=>g.tableId===t.id && g.id !== editingGuest.id).length + (editingGuest.tableId === t.id ? 1 : 0)}/{t.cap} 人)
+                                            </option>)}
+                                        </select>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                                        <button className="btn-action" style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #cbd5e1', flex: 1 }} onClick={() => {
+                                            updateGuestData(guests.filter(g => g.id !== editingGuest.id));
+                                            setEditingGuest(null);
+                                        }}>刪除</button>
+                                        <button className="btn-action" style={{ flex: 2 }} onClick={() => {
+                                            updateGuestData(guests.map(g => g.id === editingGuest.id ? editingGuest : g));
+                                            setEditingGuest(null);
+                                        }}>儲存修改</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 重置確認 Modal */}
+                    {showResetConfirm && (
+                        <div className="modal-overlay" style={{ alignItems: 'center', zIndex: 9999 }}>
+                            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '80%', maxWidth: '300px', textAlign: 'center' }}>
+                                <div style={{ color: '#ef4444', marginBottom: '12px', display: 'flex', justifyContent: 'center' }}><Icon type="alert" size="32" /></div>
+                                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>危險操作</h3>
+                                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>確定要清除所有排位與賓客資料，並載入星海薈最新佈局嗎？<br/><br/><b>這會同步覆蓋所有人的雲端資料，且無法復原。</b></p>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 'bold', color: '#64748b' }} onClick={() => setShowResetConfirm(false)}>取消</button>
+                                    <button style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold' }} onClick={executeReset}>確定清除</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
