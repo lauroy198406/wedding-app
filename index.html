@@ -9,6 +9,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
     
+    <!-- Firebase 模組載入 (解決 Babel require 錯誤) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        window.FirebaseLib = {
+            initializeApp,
+            getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged,
+            getFirestore, doc, onSnapshot, setDoc
+        };
+        window.dispatchEvent(new Event('firebase-loaded'));
+    </script>
+
     <style>
         /* 基礎設定與防彈跳 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -283,52 +297,65 @@
 
             useEffect(() => {
                 const initSystem = async () => {
-                    if (typeof __firebase_config === 'undefined') {
-                        loadLocalData();
-                        setIsLoaded(true);
-                        return;
+                if (typeof __firebase_config === 'undefined') {
+                    loadLocalData();
+                    setIsLoaded(true);
+                    return;
+                }
+
+                setIsCloudMode(true);
+                setLoadMsg('連線至雲端伺服器中...');
+                
+                // 等待 Firebase 模組載入完成
+                const waitForFirebase = () => new Promise(resolve => {
+                    if (window.FirebaseLib) return resolve(true);
+                    const timer = setTimeout(() => resolve(false), 5000);
+                    window.addEventListener('firebase-loaded', () => {
+                        clearTimeout(timer);
+                        resolve(true);
+                    });
+                });
+
+                try {
+                    const isFirebaseReady = await waitForFirebase();
+                    if (!isFirebaseReady) throw new Error("Firebase 模組載入超時");
+
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore } = window.FirebaseLib;
+
+                    const app = initializeApp(firebaseConfig);
+                    const auth = getAuth(app);
+                    const firestoreDb = getFirestore(app);
+                    setDb(firestoreDb);
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
                     }
 
-                    setIsCloudMode(true);
-                    setLoadMsg('連線至雲端伺服器中...');
-                    try {
-                        const firebaseConfig = JSON.parse(__firebase_config);
-                        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
-                        const { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
-                        const { getFirestore } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+                    onAuthStateChanged(auth, (u) => { setUser(u); });
+                } catch (error) {
+                    console.error("Firebase init failed", error);
+                    setLoadMsg('雲端連線失敗，自動切換至離線模式...');
+                    loadLocalData(); 
+                    setTimeout(() => setIsLoaded(true), 1500);
+                }
+            };
+            initSystem();
+        }, []);
 
-                        const app = initializeApp(firebaseConfig);
-                        const auth = getAuth(app);
-                        const firestoreDb = getFirestore(app);
-                        setDb(firestoreDb);
+        useEffect(() => {
+            if (!isCloudMode || !user || !db) return;
+            setLoadMsg('同步雲端資料中...');
+            let unsubscribe;
 
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-
-                        onAuthStateChanged(auth, (u) => { setUser(u); });
-                    } catch (error) {
-                        console.error("Firebase init failed", error);
-                        setLoadMsg('雲端連線失敗，自動切換至離線模式...');
-                        loadLocalData(); 
-                        setTimeout(() => setIsLoaded(true), 1500);
-                    }
-                };
-                initSystem();
-            }, []);
-
-            useEffect(() => {
-                if (!isCloudMode || !user || !db) return;
-                setLoadMsg('同步雲端資料中...');
-                let unsubscribe;
-
-                const listenToCloud = async () => {
-                    const { doc, onSnapshot, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    // 升級至 v7 資料庫通道
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v7');
+            const listenToCloud = async () => {
+                if (!window.FirebaseLib) return;
+                const { doc, onSnapshot, setDoc } = window.FirebaseLib;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
+                // 升級至 v7 資料庫通道，並且確保路徑有 6 個區段 (偶數) 以符合 document reference 規則
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'wedding_db_v7');
 
                     unsubscribe = onSnapshot(docRef, (document) => {
                         if (document.exists()) {
@@ -347,27 +374,28 @@
             }, [user, db, isCloudMode]);
 
             const syncData = async (newTables, newGuests) => {
-                if (!isCloudMode) {
-                    localStorage.setItem('wedding_seating_local_v3', JSON.stringify({ tables: newTables, guests: newGuests }));
-                    setSaveStatus('本機已儲存 ✓');
-                    setTimeout(() => setSaveStatus(''), 2000);
-                    return;
-                }
-                if (!db || !user) return;
-                setSaveStatus('同步中...');
-                try {
-                    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_db_v7');
-                    await setDoc(docRef, { tables: newTables, guests: newGuests });
-                    setSaveStatus('雲端已儲存 ✓');
-                    setTimeout(() => setSaveStatus(''), 2000);
-                } catch (e) {
-                    setSaveStatus('同步失敗 ❌');
-                }
-            };
+            if (!isCloudMode) {
+                localStorage.setItem('wedding_seating_local_v3', JSON.stringify({ tables: newTables, guests: newGuests }));
+                setSaveStatus('本機已儲存 ✓');
+                setTimeout(() => setSaveStatus(''), 2000);
+                return;
+            }
+            if (!db || !user || !window.FirebaseLib) return;
+            setSaveStatus('同步中...');
+            try {
+                const { doc, setDoc } = window.FirebaseLib;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-wedding-app';
+                // 確保儲存時路徑有 6 個區段
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'wedding_db_v7');
+                await setDoc(docRef, { tables: newTables, guests: newGuests });
+                setSaveStatus('雲端已儲存 ✓');
+                setTimeout(() => setSaveStatus(''), 2000);
+            } catch (e) {
+                setSaveStatus('同步失敗 ❌');
+            }
+        };
 
-            useEffect(() => {
+        useEffect(() => {
                 if(selTableId === null) {
                     setModalTab('seated');
                     setModalSearchTerm('');
