@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
 
-    <!-- 原生載入 Firebase 模組，避免 Babel 編譯錯誤 -->
+    <!-- 載入 Firebase 模組 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
@@ -22,12 +22,10 @@
     </script>
     
     <style>
-        /* 🌟 修正手機版高度問題 (使用 dvh 與 safe-area) */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; width: 100%; overflow: hidden; background-color: #f1f5f9; }
         body { font-family: sans-serif; color: #1e293b; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         
-        /* 關鍵：使用 100dvh 適應手機瀏覽器網址列伸縮 */
         #root { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         .hidden { display: none !important; }
         
@@ -38,14 +36,11 @@
         .btn-icon.active { background: #f59e0b; color: white; }
         .btn-icon.undo-btn { background: #4f46e5; color: white; margin-right: 8px; }
         
-        /* 內容區：左右/上下分屏 (加入 min-height: 0 防止被撐開) */
         .main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
         
-        /* 場地佈局容器 */
         .layout-view { flex: 1; padding: 10px; display: flex; justify-content: center; align-items: center; background: #e2e8f0; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
         
-        /* 動態比例 Canvas */
-        .canvas { width: 100%; max-width: 100%; max-height: 100%; aspect-ratio: 1.414 / 1; background: white; position: relative; border: 2px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-radius: 4px; container-type: inline-size; margin: auto; }
+        .canvas { width: 100%; max-width: 100%; max-height: 100%; aspect-ratio: 1.414 / 1; background: white; position: relative; border: 2px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-radius: 4px; container-type: inline-size; margin: auto; transform-origin: center center; will-change: transform; }
         
         @media (min-width: 768px) {
             .main-content { flex-direction: row; }
@@ -55,16 +50,19 @@
             .canvas { border-width: 4px; }
         }
 
-        /* 場地特徵元素 */
+        /* 縮放控制按鈕 UI */
+        .zoom-controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
+        .zoom-btn { background: white; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #475569; font-weight: bold; font-size: 18px; transition: all 0.1s; }
+        .zoom-btn:active { background: #e2e8f0; transform: scale(0.95); }
+        .zoom-btn.reset { font-size: 12px; height: 32px; }
+
         .stage { position: absolute; right: 0; top: 15%; bottom: 15%; width: 3.5cqw; background: #1e293b; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 1.2cqw; font-weight: bold; writing-mode: vertical-rl; letter-spacing: 0.5cqw; pointer-events: none; }
         .window { position: absolute; left: 0; bottom: 0; right: 0; height: 2.5cqw; background: #eff6ff; border-top: 1px solid #bfdbfe; display: flex; justify-content: center; align-items: center; color: #60a5fa; font-size: 1cqw; font-weight: 900; letter-spacing: 0.5cqw; text-transform: uppercase; pointer-events: none; }
         .entrance { position: absolute; left: 0; top: 40%; bottom: 40%; width: 2cqw; background: #f1f5f9; border-right: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1cqw; font-weight: bold; writing-mode: vertical-rl; pointer-events: none; }
         .aisle { position: absolute; left: 2cqw; right: 3.5cqw; top: 44%; bottom: 44%; background: repeating-linear-gradient(45deg, rgba(225,29,72,0.02), rgba(225,29,72,0.02) 10px, rgba(225,29,72,0.04) 10px, rgba(225,29,72,0.04) 20px); border-top: 1px dashed rgba(225, 29, 72, 0.2); border-bottom: 1px dashed rgba(225, 29, 72, 0.2); z-index: 1; pointer-events: none; }
 
-        /* 桌子與內部元素 */
         .table-wrap { position: absolute; width: 4.8cqw; height: 4.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 10; cursor: grab; }
         .table-wrap:active { cursor: grabbing; }
-        .table-wrap.transition { transition: transform 0.2s, top 0.2s, left 0.2s; }
         .table-wrap.edit-mode { border: 1px dashed #cbd5e1; }
         .table-wrap.dragging { transform: translate(-50%, -50%) scale(1.1); z-index: 999 !important; transition: none !important; opacity: 0.9; }
         
@@ -75,25 +73,22 @@
         .t-count { font-size: 0.8cqw; font-weight: bold; opacity: 0.6; margin-top: 2px; }
         .del-btn { position: absolute; top: -0.5cqw; right: -0.5cqw; background: #ef4444; color: white; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; z-index: 20; pointer-events: auto; cursor: pointer; }
         
-        /* 主家席 */
         .table-wrap-main { width: 7.5cqw !important; height: 7.5cqw !important; z-index: 15; }
         .table-core-main { width: 70% !important; height: 70% !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2), inset 0 2px 4px rgba(0,0,0,0.05), 0 4px 8px rgba(0,0,0,0.2) !important; border-color: #f59e0b !important; }
         .table-core-main .t-name { font-size: 1.5cqw !important; }
         .table-core-main .t-count { font-size: 1cqw !important; margin-top: 2px !important; }
 
-        /* 圓點 */
         .dot { position: absolute; width: 0.8cqw; height: 0.8cqw; border-radius: 50%; transition: background 0.3s; z-index: 5; pointer-events: none; }
         .dot-main { width: 1.2cqw !important; height: 1.2cqw !important; } 
         .dot-empty { background: #cbd5e1; }
         .dot-boy { background: #2563eb; }
         .dot-girl { background: #ec4899; }
         
-        /* 🌟 底部導航 (修正 flex-shrink 確保不被擠壓，並適配 iPhone 底部橫條) */
-        .nav-bar { height: 60px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; flex-shrink: 0; padding-bottom: max(5px, env(safe-area-inset-bottom)); }
+        /* 底部導航 */
+        .nav-bar { height: 60px; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; flex-shrink: 0; padding-bottom: max(5px, env(safe-area-inset-bottom)); z-index: 50;}
         .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; border: none; background: none; font-size: 10px; font-weight: bold; gap: 4px; cursor: pointer; flex: 1; height: 100%; }
         .nav-item.active { color: #e11d48; }
 
-        /* 列表與表單 */
         .panel { padding: 16px; background: #f8fafc; overflow-y: auto; height: 100%; display: flex; flex-direction: column; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
         .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex-shrink: 0; }
         .flex-row { display: flex; justify-content: space-between; align-items: center; }
@@ -103,7 +98,6 @@
         .select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; background: white; outline: none; }
         .btn-action { background: #e11d48; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; }
         
-        /* 篩選標籤 */
         .filter-group { display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px; }
         .filter-group::-webkit-scrollbar { display: none; }
         .filter-btn { padding: 6px 12px; border-radius: 16px; font-size: 10px; font-weight: bold; background: white; color: #64748b; border: 1px solid #cbd5e1; cursor: pointer; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
@@ -112,7 +106,6 @@
         .filter-btn.active-girl { background: #ec4899; color: white; border-color: #ec4899; }
         .filter-btn.active-type { background: #e11d48; color: white; border-color: #e11d48; }
 
-        /* 模態框 (Modal) */
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; display: flex; align-items: flex-end; justify-content: center; padding-bottom: env(safe-area-inset-bottom); }
         .modal-content { background: white; width: 100%; max-width: 500px; height: 88vh; border-radius: 24px 24px 0 0; padding: 20px 20px 0 20px; display: flex; flex-direction: column; animation: slideUp 0.3s ease-out; overflow: hidden; }
         @media (min-width: 768px) { .modal-content { height: 80vh; border-radius: 24px; margin-bottom: 5vh; } .modal-overlay { align-items: center; padding-bottom: 0; } }
@@ -142,7 +135,6 @@
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* 離線模式提示條 */
         .offline-banner { background: #ef4444; color: white; font-size: 10px; text-align: center; padding: 4px; font-weight: bold; }
     </style>
 </head>
@@ -151,9 +143,6 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 🚨🚨🚨【您的專屬 Firebase 資料庫設定區】🚨🚨🚨
-        // 如果您想要在 GitHub 上實現多手機、多電腦同步，請註冊 Firebase 並將以下留白處填入您的資料。
-        // 若保持空白，系統會自動使用「單機版模式(LocalStorage)」。
         const MY_FIREBASE_CONFIG = {
             apiKey: "AIzaSyAQr2bQGYL2AOeGtxGW55a6-bdR8GZWpfQ",
             authDomain: "weddingapp-648e4.firebaseapp.com",
@@ -170,7 +159,6 @@
             return false;
         };
 
-        // 安全地獲取 Firebase API，帶有超時保護
         const getFirebaseAPI = () => {
             return new Promise((resolve, reject) => {
                 if (window.FirebaseAPI) return resolve(window.FirebaseAPI);
@@ -181,7 +169,7 @@
                     if (window.FirebaseAPI) {
                         clearInterval(interval);
                         resolve(window.FirebaseAPI);
-                    } else if (attempts > 100) { // 等待最多 5 秒 (50ms * 100)
+                    } else if (attempts > 100) {
                         clearInterval(interval);
                         reject(new Error("載入 Firebase 模組逾時"));
                     }
@@ -195,6 +183,7 @@
             const paths = {
                 settings: "M12.22 2h-1.44a1 1 0 00-.99.82l-.23 1.33a8.21 8.21 0 00-2 1.15l-1.25-.5a1 1 0 00-1.21.36l-.72 1.25a1 1 0 00.22 1.25l1.05.81a8 8 0 000 2.32l-1.05.81a1 1 0 00-.22 1.25l.72 1.25a1 1 0 001.21.36l1.25-.5a8.21 8.21 0 002 1.15l.23 1.33a1 1 0 00.99.82h1.44a1 1 0 00.99-.82l.23-1.33a8.21 8.21 0 002-1.15l1.25.5a1 1 0 001.21-.36l.72-1.25a1 1 0 00-.22-1.25l-1.05-.81a8 8 0 000-2.32l1.05-.81a1 1 0 00.22-1.25l-.72-1.25a1 1 0 00-1.21-.36l-1.25.5a8.21 8.21 0 00-2-1.15l-.23-1.33a1 1 0 00-.99-.82z",
                 plus: "M12 5v14M5 12h14",
+                minus: "M5 12h14",
                 x: "M18 6L6 18M6 6l12 12",
                 layout: "M3 3h18v18H3z M3 9h18 M9 21V9",
                 users: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
@@ -203,7 +192,8 @@
                 alert: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
                 edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
                 cloud: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z",
-                undo: "M3 9l4-4m-4 4l4 4m-4-4h10a5 5 0 010 10h-2"
+                undo: "M3 9l4-4m-4 4l4 4m-4-4h10a5 5 0 010 10h-2",
+                maximize: "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -257,25 +247,104 @@
 
             const guestTypesOptions = ['親戚', '朋友', '同事', '其他'];
 
-        const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
-
-        const saveHistory = (currentTables, currentGuests) => {
-            setHistory(prev => {
-                if (prev.length > 0) {
-                    const lastState = prev[prev.length - 1];
-                    // 避免儲存完全相同的重複狀態
-                    if (JSON.stringify(lastState.tables) === JSON.stringify(currentTables) && 
-                        JSON.stringify(lastState.guests) === JSON.stringify(currentGuests)) {
-                        return prev;
-                    }
-                }
-                const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
-                if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
-                return newHistory;
+            // 🌟 縮放與平移狀態管理
+            const [viewTransform, setViewTransform] = useState({ scale: 1, x: 0, y: 0 });
+            const gestureState = useRef({
+                isPinching: false,
+                isPanning: false,
+                startDist: 0,
+                startScale: 1,
+                startX: 0,
+                startY: 0,
+                startTx: 0,
+                startTy: 0
             });
-        };
 
-        const handleUndo = () => {
+            const handleViewTouchStart = (e) => {
+                // 如果正在拖曳桌子，停止觸發畫面縮放
+                if (dragIdState) return; 
+
+                if (e.touches.length === 2) {
+                    gestureState.current.isPinching = true;
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    gestureState.current.startDist = Math.sqrt(dx * dx + dy * dy);
+                    gestureState.current.startScale = viewTransform.scale;
+                } else if (e.touches.length === 1 && viewTransform.scale > 1) {
+                    // 只有在放大狀態下，單指才允許平移畫面
+                    gestureState.current.isPanning = true;
+                    gestureState.current.startX = e.touches[0].clientX;
+                    gestureState.current.startY = e.touches[0].clientY;
+                    gestureState.current.startTx = viewTransform.x;
+                    gestureState.current.startTy = viewTransform.y;
+                }
+            };
+
+            const handleViewTouchMove = (e) => {
+                if (dragIdState) return; // 優先處理桌子拖曳
+
+                if (gestureState.current.isPinching && e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    let newScale = gestureState.current.startScale * (dist / gestureState.current.startDist);
+                    
+                    // 限制縮放範圍 0.8x 到 4x
+                    newScale = Math.max(0.8, Math.min(newScale, 4)); 
+                    setViewTransform(prev => ({ ...prev, scale: newScale }));
+                } else if (gestureState.current.isPanning && e.touches.length === 1) {
+                    const dx = e.touches[0].clientX - gestureState.current.startX;
+                    const dy = e.touches[0].clientY - gestureState.current.startY;
+                    // 移動靈敏度可略微調整
+                    setViewTransform(prev => ({ 
+                        ...prev, 
+                        x: gestureState.current.startTx + dx, 
+                        y: gestureState.current.startTy + dy 
+                    }));
+                }
+            };
+
+            const handleViewTouchEnd = () => {
+                gestureState.current.isPinching = false;
+                gestureState.current.isPanning = false;
+                // 若縮小於1，自動彈回原本大小與中心
+                if (viewTransform.scale < 1) {
+                    setViewTransform({ scale: 1, x: 0, y: 0 });
+                }
+            };
+
+            const handleWheel = (e) => {
+                // 電腦版觸控板雙指縮放或 Ctrl+滾輪
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    let newScale = viewTransform.scale - e.deltaY * 0.01;
+                    newScale = Math.max(0.8, Math.min(newScale, 4));
+                    setViewTransform(prev => ({ ...prev, scale: newScale }));
+                }
+            };
+
+            const handleZoomIn = () => setViewTransform(p => ({...p, scale: Math.min(p.scale + 0.5, 4)}));
+            const handleZoomOut = () => setViewTransform(p => ({...p, scale: Math.max(p.scale - 0.5, 0.8)}));
+            const handleZoomReset = () => setViewTransform({ scale: 1, x: 0, y: 0 });
+
+            const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
+
+            const saveHistory = (currentTables, currentGuests) => {
+                setHistory(prev => {
+                    if (prev.length > 0) {
+                        const lastState = prev[prev.length - 1];
+                        if (JSON.stringify(lastState.tables) === JSON.stringify(currentTables) && 
+                            JSON.stringify(lastState.guests) === JSON.stringify(currentGuests)) {
+                            return prev;
+                        }
+                    }
+                    const newHistory = [...prev, { tables: deepCopy(currentTables), guests: deepCopy(currentGuests) }];
+                    if(newHistory.length > 10) return newHistory.slice(newHistory.length - 10);
+                    return newHistory;
+                });
+            };
+
+            const handleUndo = () => {
                 if (history.length === 0) return;
                 const lastState = history[history.length - 1];
                 setTables(lastState.tables);
@@ -328,21 +397,17 @@
                 setIsLoaded(true);
             };
 
-            // 🌟 自動判斷 Firebase Config 是否有效並初始化
             useEffect(() => {
                 const initSystem = async () => {
                     let finalConfig = null;
                     
-                    // 1. 檢查使用者是否有填寫 MY_FIREBASE_CONFIG
                     if (MY_FIREBASE_CONFIG.apiKey && MY_FIREBASE_CONFIG.apiKey !== "") {
                         finalConfig = MY_FIREBASE_CONFIG;
                     } 
-                    // 2. 如果沒填，檢查是否在開發環境(AI Canvas)中
                     else if (typeof __firebase_config !== 'undefined') {
                         finalConfig = JSON.parse(__firebase_config);
                     }
 
-                    // 如果兩者都沒有，直接啟動本機模式
                     if (!finalConfig) {
                         setLoadMsg('啟用本機單機模式...');
                         loadLocalData();
@@ -364,7 +429,7 @@
                         if (!isCustomFirebase && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
-                            await signInAnonymously(auth); // 自己專屬的 Firebase 直接使用匿名登入
+                            await signInAnonymously(auth); 
                         }
 
                         onAuthStateChanged(auth, (u) => { setUser(u); });
@@ -387,7 +452,6 @@
                         const { doc, onSnapshot, setDoc } = await getFirebaseAPI();
                         const appId = MY_FIREBASE_CONFIG.projectId || (typeof __app_id !== 'undefined' ? __app_id : 'my-wedding');
                         
-                        // 🌟 修正存取路徑：強制符合系統安全性規則 artifacts/{appId}/public/data/...
                         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'state');
 
                         unsubscribe = onSnapshot(docRef, (document) => {
@@ -401,7 +465,7 @@
                             }
                         }, (err) => {
                             console.error("權限或連線錯誤:", err);
-                            loadLocalData(); // 發生權限錯誤時退回本機
+                            loadLocalData(); 
                         });
                     } catch (e) {
                         console.error("無法掛載雲端監聽:", e);
@@ -426,7 +490,6 @@
                     const { doc, setDoc } = await getFirebaseAPI();
                     const appId = MY_FIREBASE_CONFIG.projectId || (typeof __app_id !== 'undefined' ? __app_id : 'my-wedding');
                     
-                    // 🌟 修正存取路徑
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'wedding_seating', 'state');
                     
                     await setDoc(docRef, { tables: newTables, guests: newGuests });
@@ -478,11 +541,11 @@
                 updateTableData(tables.map(t => t.id === id ? { ...t, side: newSide } : t));
             };
 
+            // 🌟 即使畫布被放大 (scaled) 或平移 (translated)，以下百分比計算依然精準！
+            // 因為 clientX 是螢幕座標，而 rect.left 也會跟著 transform 一起位移。
             const handleMove = (e) => {
                 if(!dragIdState || !containerRef.current || !editMode) return;
                 
-                if (e.cancelable) { e.preventDefault(); }
-
                 let clientX, clientY;
                 if (e.touches && e.touches.length > 0) {
                     clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
@@ -498,19 +561,23 @@
             };
 
             const handleEndDrag = () => {
-            if (dragIdState) {
-                setDragId(null);
-                syncData(tables, guests); 
-            }
-        };
+                if (dragIdState) {
+                    setDragId(null);
+                    syncData(tables, guests); 
+                }
+            };
 
-        const handleStartDrag = (e, id) => {
-            if(!editMode) return;
-            saveHistory(tables, guests); // 在開始拖曳前記錄狀態
-            setDragId(id);
-        };
+            const handleStartDrag = (e, id) => {
+                if(!editMode) return;
+                // 如果是雙指操作，不啟動拖曳
+                if(e.touches && e.touches.length > 1) return;
+                
+                saveHistory(tables, guests); 
+                setDragId(id);
+                e.stopPropagation(); // 避免觸發畫布的平移
+            };
 
-        const promptReset = () => {
+            const promptReset = () => {
                 setConfirmAction({
                     title: '危險操作',
                     message: isCloudMode ? '確定要清除所有資料嗎？這會同步覆蓋所有人的雲端資料！' : '確定要清除本機所有排位與賓客資料嗎？',
@@ -551,7 +618,12 @@
                         style={{ left: `${table.x}%`, top: `${table.y}%` }}
                         onMouseDown={(e) => handleStartDrag(e, table.id)}
                         onTouchStart={(e) => handleStartDrag(e, table.id)}
-                        onClick={() => !editMode && setSelTableId(table.id)}
+                        onClick={(e) => {
+                            if (!editMode) {
+                                // 避免在平移畫面結束時誤觸點擊
+                                if(!gestureState.current.isPanning) setSelTableId(table.id);
+                            }
+                        }}
                     >
                         {dots}
                         <div className={coreClass}>
@@ -619,7 +691,6 @@
                         </div>
                     )}
 
-                    {/* 頂部控制列 */}
                     <div className="header">
                         <div className="header-title">
                             The ONE 星海薈
@@ -638,7 +709,11 @@
                                     <Icon type="trash" size="14" />
                                 </button>
                             )}
-                            <button className={`btn-icon ${editMode ? 'active' : ''}`} onClick={() => setEditMode(!editMode)}>
+                            <button className={`btn-icon ${editMode ? 'active' : ''}`} onClick={() => {
+                                setEditMode(!editMode);
+                                // 編輯模式時自動重設縮放，避免拖曳混亂
+                                if(!editMode) setViewTransform({ scale: 1, x: 0, y: 0 }); 
+                            }}>
                                 <Icon type="settings" size="16" />
                             </button>
                             <button className="btn-icon" onClick={() => {
@@ -651,14 +726,36 @@
                         </div>
                     </div>
 
-                    {/* 主要內容區塊 */}
                     <div className="main-content">
                         
-                        {/* 視圖 1: 場地佈局 */}
-                        <div className={`layout-view ${tab === 'layout' ? '' : 'hidden'}`}>
+                        {/* 視圖 1: 場地佈局 - 加入手勢監聽 */}
+                        <div 
+                            className={`layout-view ${tab === 'layout' ? '' : 'hidden'}`}
+                            onTouchStart={handleViewTouchStart}
+                            onTouchMove={handleViewTouchMove}
+                            onTouchEnd={handleViewTouchEnd}
+                            onWheel={handleWheel}
+                        >
+                            {/* 縮放控制 UI */}
+                            {!editMode && (
+                                <div className="zoom-controls">
+                                    <button className="zoom-btn" onClick={handleZoomIn}><Icon type="plus"/></button>
+                                    <button className="zoom-btn reset" onClick={handleZoomReset} style={{ opacity: viewTransform.scale !== 1 ? 1 : 0.5 }}>
+                                        <Icon type="maximize" size="14"/>
+                                    </button>
+                                    <button className="zoom-btn" onClick={handleZoomOut}><Icon type="minus"/></button>
+                                </div>
+                            )}
+
+                            {/* 應用縮放變換的 Canvas */}
                             <div 
                                 className="canvas" 
                                 ref={containerRef} 
+                                style={{ 
+                                    transform: `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`,
+                                    transition: gestureState.current.isPinching || gestureState.current.isPanning || dragIdState ? 'none' : 'transform 0.2s ease-out',
+                                    touchAction: editMode ? 'none' : 'pan-x pan-y' // 允許放大後的手機預設行為，或用我們自己的pan
+                                }}
                                 onTouchMove={handleMove} 
                                 onMouseMove={handleMove} 
                                 onMouseUp={handleEndDrag} 
@@ -673,7 +770,7 @@
                             </div>
                         </div>
 
-                        {/* 視圖 2: 賓客管理面板 */}
+                        {}
                         <div className={`panel ${tab === 'guests' ? '' : 'hidden'}`}>
                             <div className="card">
                                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>快速錄入新賓客</div>
@@ -737,13 +834,12 @@
                         </div>
                     </div>
 
-                    {/* 底部導航欄 */}
                     <div className="nav-bar">
                         <button className={`nav-item ${tab==='layout'?'active':''}`} onClick={()=>setTab('layout')}><Icon type="layout"/>場地</button>
                         <button className={`nav-item ${tab==='guests'?'active':''}`} onClick={()=>setTab('guests')}><Icon type="users"/>賓客</button>
                     </div>
 
-                    {/* 桌子管理 Modal */}
+                    {}
                     {currTable && !editMode && (
                         <div className="modal-overlay" onClick={(e) => {if(e.target === e.currentTarget) setSelTableId(null)}}>
                             <div className="modal-content">
@@ -847,7 +943,6 @@
                         </div>
                     )}
 
-                    {/* 賓客編輯 Modal */}
                     {editingGuest && (
                         <div className="modal-overlay" onClick={(e) => {if(e.target === e.currentTarget) setEditingGuest(null)}}>
                             <div className="modal-content" style={{ paddingBottom: '30px', height: 'auto', minHeight: 'auto' }}>
@@ -909,7 +1004,6 @@
                         </div>
                     )}
 
-                    {/* 統一防呆確認 Modal */}
                     {confirmAction && (
                         <div className="modal-overlay" style={{ alignItems: 'center', zIndex: 9999 }}>
                             <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '80%', maxWidth: '300px', textAlign: 'center', animation: 'slideUp 0.2s ease-out' }}>
